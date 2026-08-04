@@ -76,9 +76,23 @@ model Match {
   tournament   Tournament         @relation(fields: [tournamentId], references: [id])
   participants MatchParticipant[]
   votes        Vote[]
+  parentLinks  MatchParent[]      @relation("ChildMatch")
+  childLinks   MatchParent[]      @relation("ParentMatch")
 
   @@unique([tournamentId, position])
   @@index([tournamentId])
+}
+
+// Declares that a match's participant pool is fed by the winners/survivors of another match
+model MatchParent {
+  matchId       String
+  parentMatchId String
+
+  match       Match @relation("ChildMatch", fields: [matchId], references: [id])
+  parentMatch Match @relation("ParentMatch", fields: [parentMatchId], references: [id])
+
+  @@id([matchId, parentMatchId])
+  @@index([parentMatchId])
 }
 
 // Join table: which players are in a given match, and the outcome

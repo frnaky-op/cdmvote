@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "node scripts/prisma-migrate.js",
     "figma:setup": "node --env-file=.env scripts/setup-figma.js",
     "figma:extract": "node --env-file=.env scripts/setup-figma.js",
     "figma:help": "node --env-file=.env scripts/setup-figma.js --help"

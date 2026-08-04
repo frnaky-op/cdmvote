@@ -5,7 +5,7 @@ services:
       target: dev
     # Turbopack's native file watcher doesn't reliably see changes through
     # Docker Desktop's bind-mount layer on Windows; webpack + polling does.
-    command: npm run dev -- --webpack
+    command: sh -c "npx prisma migrate deploy && npm run dev -- --webpack"
     ports:
       - "3000:3000"
     env_file:

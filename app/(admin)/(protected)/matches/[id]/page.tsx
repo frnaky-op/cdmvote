@@ -12,7 +12,7 @@ export default async function EditMatchPage({
   const [match, activePlayers] = await Promise.all([
     prisma.match.findUnique({
       where: { id },
-      include: { participants: true },
+      include: { participants: true, parentLinks: true },
     }),
     prisma.player.findMany({
       where: { status: "active" },
@@ -23,6 +23,19 @@ export default async function EditMatchPage({
 
   if (!match) notFound();
 
+  // A match can only be fed by matches that run before it.
+  const availableParentMatches = await prisma.match.findMany({
+    where: { id: { not: id }, position: { lt: match.position } },
+    orderBy: { position: "asc" },
+    select: {
+      id: true,
+      position: true,
+      state: true,
+      survivorsCount: true,
+      _count: { select: { participants: { where: { result: { in: ["advanced", "winner"] } } } } },
+    },
+  });
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       <h1 className="mb-6 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
@@ -30,6 +43,13 @@ export default async function EditMatchPage({
       </h1>
       <MatchForm
         activePlayers={activePlayers}
+        availableParentMatches={availableParentMatches.map((m) => ({
+          id: m.id,
+          position: m.position,
+          state: m.state,
+          survivorsCount: m.survivorsCount,
+          advancedCount: m._count.participants,
+        }))}
         match={{
           id: match.id,
           position: match.position,
@@ -38,6 +58,7 @@ export default async function EditMatchPage({
           scheduledStart: match.scheduledStart?.toISOString() ?? null,
           scheduledEnd: match.scheduledEnd?.toISOString() ?? null,
           participantPlayerIds: match.participants.map((p) => p.playerId),
+          parentMatchIds: match.parentLinks.map((p) => p.parentMatchId),
         }}
       />
     </div>
