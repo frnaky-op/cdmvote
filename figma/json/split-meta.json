@@ -1,0 +1,40 @@
+{
+  "totalFrames": 3,
+  "totalPages": 1,
+  "frames": [
+    {
+      "id": "1:2",
+      "name": "Frame 1",
+      "file": "1-2.json",
+      "bounds": {
+        "x": -952,
+        "y": -1000,
+        "width": 1080,
+        "height": 1920
+      }
+    },
+    {
+      "id": "30:32",
+      "name": "Frame 3",
+      "file": "30-32.json",
+      "bounds": {
+        "x": -952,
+        "y": 1279,
+        "width": 1080,
+        "height": 1920
+      }
+    },
+    {
+      "id": "5:9",
+      "name": "Frame 2",
+      "file": "5-9.json",
+      "bounds": {
+        "x": 302,
+        "y": -1000,
+        "width": 1080,
+        "height": 1920
+      }
+    }
+  ],
+  "splitAt": "2026-08-04T16:45:11.959Z"
+}

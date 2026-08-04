@@ -1,0 +1,48 @@
+{
+  "name": "cdmvote",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "figma:setup": "node --env-file=.env scripts/setup-figma.js",
+    "figma:extract": "node --env-file=.env scripts/setup-figma.js",
+    "figma:help": "node --env-file=.env scripts/setup-figma.js --help"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.3",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.8",
+    "next": "16.3.0",
+    "pg": "^8.22.0",
+    "qrcode": "^1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.5",
+    "typescript": "^5",
+    "stream-chain": "^2.2.5",
+    "stream-json": "^1.8.0",
+    "adm-zip": "^0.6.0"
+  },
+  "bin": {
+    "setup-figma": "scripts/setup-figma.js"
+  }
+}

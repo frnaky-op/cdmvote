@@ -1,0 +1,118 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TournamentStatus {
+  draft
+  active
+  completed
+}
+
+enum PlayerStatus {
+  active
+  eliminated
+  winner
+}
+
+enum MatchState {
+  scheduled
+  open
+  closed
+  revealed
+  archived
+}
+
+enum ParticipantResult {
+  pending
+  advanced
+  eliminated
+  winner
+}
+
+model Tournament {
+  id        String           @id @default(cuid())
+  name      String
+  status    TournamentStatus @default(draft)
+  createdAt DateTime         @default(now())
+
+  players Player[]
+  matches Match[]
+}
+
+model Player {
+  id           String       @id @default(cuid())
+  tournamentId String
+  name         String
+  photoUrl     String?
+  bio          String?
+  status       PlayerStatus @default(active)
+  createdAt    DateTime     @default(now())
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id])
+  participants MatchParticipant[]
+  votes        Vote[]
+
+  @@index([tournamentId])
+}
+
+model Match {
+  id             String     @id @default(cuid())
+  tournamentId   String
+  position       Int // 1-5, ordering within the tournament
+  state          MatchState @default(scheduled)
+  survivorsCount Int // top-N that advance from this match
+
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  openedAt       DateTime?
+  closedAt       DateTime?
+  revealedAt     DateTime?
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id])
+  participants MatchParticipant[]
+  votes        Vote[]
+
+  @@unique([tournamentId, position])
+  @@index([tournamentId])
+}
+
+// Join table: which players are in a given match, and the outcome
+model MatchParticipant {
+  id         String            @id @default(cuid())
+  matchId    String
+  playerId   String
+  voteCount  Int               @default(0) // denormalized, updated on vote / recomputed on close
+  result     ParticipantResult @default(pending)
+
+  match  Match  @relation(fields: [matchId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([matchId, playerId])
+  @@index([matchId])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  matchId   String
+  playerId  String
+  voterId   String // anonymous cookie-based id
+  createdAt DateTime @default(now())
+
+  match  Match  @relation(fields: [matchId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([matchId, voterId]) // one vote per person per match
+  @@index([matchId, playerId])
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

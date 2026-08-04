@@ -1,0 +1,54 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    # Turbopack's native file watcher doesn't reliably see changes through
+    # Docker Desktop's bind-mount layer on Windows; webpack + polling does.
+    command: npm run dev -- --webpack
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://cdmvote:cdmvote@postgres:5432/cdmvote?schema=public
+      REDIS_URL: redis://redis:6379
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cdmvote
+      POSTGRES_PASSWORD: cdmvote
+      POSTGRES_DB: cdmvote
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdmvote"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
