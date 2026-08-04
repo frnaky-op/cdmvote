@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { useEventStream } from "@/lib/hooks/useEventStream";
 import type { CurrentMatchStatus } from "@/lib/match-state";
 import type { RealtimeEvent } from "@/lib/redis";
+import ScalableLayout from "./scalableLayout";
 
 type Participant = CurrentMatchStatus["participants"][number];
 
@@ -62,27 +63,29 @@ export function AudienceShell({ initialStatus }: { initialStatus: CurrentMatchSt
 
   const { match, participants, hasVoted, votedPlayerId } = status;
 
-  if (!match) {
-    return <WaitingScreen />;
-  }
-
   return (
-    <VotingScreen
-      position={match.position}
-      participants={participants}
-      hasVoted={hasVoted}
-      votedPlayerId={votedPlayerId}
-      voting={voting}
-      voteError={voteError}
-      onVote={handleVote}
-    />
+    <ScalableLayout baseWidth={1080} baseHeight={1920}>
+      {!match ? (
+        <WaitingScreen />
+      ) : (
+        <VotingScreen
+          position={match.position}
+          participants={participants}
+          hasVoted={hasVoted}
+          votedPlayerId={votedPlayerId}
+          voting={voting}
+          voteError={voteError}
+          onVote={handleVote}
+        />
+      )}
+    </ScalableLayout>
   );
 }
 
 function WaitingScreen() {
   return (
     <div
-      className="flex min-h-screen flex-1 flex-col items-center justify-center bg-cover bg-center px-6 text-center"
+      className="flex h-full w-full flex-col items-center justify-center bg-cover bg-center px-6 text-center"
       style={{ backgroundImage: "url(/bg.png)" }}
     >
       <Image
@@ -120,7 +123,7 @@ function VotingScreen({
 
   return (
     <div
-      className="relative flex min-h-screen flex-1 flex-col bg-cover bg-center pb-8"
+      className="relative flex h-full w-full flex-col overflow-hidden bg-cover bg-center pb-8"
       style={{ backgroundImage: "url(/bg.png)" }}
     >
       <Image
@@ -212,22 +215,31 @@ function PlayerCard({
       type="button"
       onClick={onVote}
       disabled={disabled || !participant.photoUrl}
-      className="group relative w-full overflow-hidden rounded-2xl outline-none transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+      className="group flex w-full flex-col items-center gap-1.5 outline-none disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {participant.photoUrl ? (
-        <Image
-          src={participant.photoUrl}
-          alt={participant.name}
-          width={205}
-          height={234}
-          className="h-auto w-full"
-        />
-      ) : (
-        <div className="flex aspect-205/234 w-full items-center justify-center rounded-2xl bg-black/30 px-2 text-center text-xs text-amber-100">
-          {participant.name}
-        </div>
-      )}
-      <span className="pointer-events-none absolute inset-0 rounded-2xl ring-0 ring-amber-400 transition group-active:ring-4" />
+      <span className="relative w-full overflow-hidden rounded-2xl transition active:scale-95">
+        {participant.photoUrl ? (
+          <Image
+            src={participant.photoUrl}
+            alt={participant.name}
+            width={205}
+            height={234}
+            className="h-auto w-full"
+          />
+        ) : (
+          <div className="flex aspect-205/234 w-full items-center justify-center rounded-2xl bg-black/30 px-2 text-center text-xs text-amber-100">
+            {participant.name}
+          </div>
+        )}
+        <span className="pointer-events-none absolute inset-0 rounded-2xl ring-0 ring-amber-400 transition group-active:ring-4" />
+      </span>
+      <Image
+        src="/btn-votez.png"
+        alt="Votez"
+        width={167}
+        height={43}
+        className="w-20 transition group-active:scale-95"
+      />
     </button>
   );
 }
