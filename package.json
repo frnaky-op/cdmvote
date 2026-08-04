@@ -16,6 +16,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@xyflow/react": "^12.11.2",
     "bcryptjs": "^3.0.3",
     "ioredis": "^6.0.0",
     "jose": "^6.2.8",
@@ -32,17 +33,17 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "adm-zip": "^0.6.0",
     "babel-plugin-react-compiler": "1.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "prisma": "^7.9.1",
-    "tailwindcss": "^4",
-    "tsx": "^4.23.5",
-    "typescript": "^5",
     "stream-chain": "^2.2.5",
     "stream-json": "^1.8.0",
-    "adm-zip": "^0.6.0"
+    "tailwindcss": "^4",
+    "tsx": "^4.23.5",
+    "typescript": "^5"
   },
   "bin": {
     "setup-figma": "scripts/setup-figma.js"

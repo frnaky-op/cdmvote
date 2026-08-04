@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 const LINKS = [
   { href: "/players", label: "Players" },
   { href: "/matches", label: "Matches" },
+  { href: "/flow", label: "Flow" },
 ];
 
 export function AdminNav() {
