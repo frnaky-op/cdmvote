@@ -6,6 +6,7 @@ import { useEventStream } from "@/lib/hooks/useEventStream";
 import type { CurrentMatchStatus } from "@/lib/match-state";
 import type { RealtimeEvent } from "@/lib/redis";
 import ScalableLayout from "./scalableLayout";
+import styles from "./audience-shell.module.css";
 
 type Participant = CurrentMatchStatus["participants"][number];
 
@@ -88,14 +89,6 @@ function WaitingScreen() {
       className="flex h-full w-full flex-col items-center justify-center bg-cover bg-center px-6 text-center"
       style={{ backgroundImage: "url(/bg.png)" }}
     >
-      <Image
-        src="/CDM-logo.png"
-        alt="La Coupe D'Humour"
-        width={364}
-        height={238}
-        className="w-48 drop-shadow-lg"
-        priority
-      />
       <p className="mt-8 text-lg font-medium text-amber-100">No match is open right now</p>
       <p className="mt-1 text-sm text-amber-100/60">Check back soon.</p>
     </div>
@@ -135,68 +128,33 @@ function VotingScreen({
         priority
       />
 
-      <div className="mt-4 flex flex-col items-center px-4">
-        <Image src="/Khfifa.png" alt="Khfifa présente" width={616} height={336} className="w-40" />
-      </div>
-
-      <div className="mt-2 flex items-center justify-between gap-3 px-4">
-        <Image
-          src="/CDM-logo.png"
-          alt="La Coupe D'Humour"
-          width={364}
-          height={238}
-          className="w-28 shrink-0"
-        />
-        <div className="flex flex-col items-end text-right">
-          <p
-            className="text-3xl leading-none font-black text-white italic"
-            style={{ WebkitTextStroke: "1px #1a1400" }}
-          >
-            <span className="text-amber-400">#</span>MATCH{position}
-          </p>
-          <p className="mt-1 rounded bg-amber-400 px-2 py-0.5 text-[11px] font-bold tracking-wide text-black uppercase">
-            {TOTAL_MATCHES} matchs · 1 seul gagnant !
-          </p>
-        </div>
-      </div>
-
-      <div className="relative mt-6 px-4">
-        <div
-          className="relative overflow-hidden rounded-4xl border border-amber-500/40 bg-cover bg-center p-3 shadow-2xl"
-          style={{ backgroundImage: "url(/cadre.png)" }}
-        >
+      {/* <players section> */}
+      <div className="relative mt-50">
+        <div className={`relative bg-center p-0 ${styles.playersSection}`}>
           {hasVoted && votedPlayer ? (
             <VotedCard participant={votedPlayer} />
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {participants.map((participant) => (
-                <PlayerCard
-                  key={participant.id}
-                  participant={participant}
-                  disabled={voting}
-                  onVote={() => onVote(participant.id)}
-                />
-              ))}
+            <div className={styles.cardsRow}>
+              <div className={styles.cardsContainer}>
+                {participants.map((participant) => (
+                  <PlayerCard
+                    key={participant.id}
+                    participant={participant}
+                    disabled={voting}
+                    onVote={() => onVote(participant.id)}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
-
-        <Image
-          src="/Trophy.png"
-          alt=""
-          width={212}
-          height={441}
-          className="pointer-events-none absolute bottom-0 left-1 w-16 drop-shadow-xl sm:w-20"
-        />
       </div>
+      {/* </players section> */}
+
 
       {voteError && (
         <p className="mt-4 px-6 text-center text-sm font-medium text-red-300">{voteError}</p>
       )}
-
-      <div className="mt-10 px-4">
-        <Image src="/sponsors.png" alt="Sponsors" width={984} height={160} className="w-full" />
-      </div>
     </div>
   );
 }
@@ -215,30 +173,27 @@ function PlayerCard({
       type="button"
       onClick={onVote}
       disabled={disabled || !participant.photoUrl}
-      className="group flex w-full flex-col items-center gap-1.5 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      className={styles.card}
     >
-      <span className="relative w-full overflow-hidden rounded-2xl transition active:scale-95">
+      <span className={styles.cardImageWrap}>
         {participant.photoUrl ? (
           <Image
             src={participant.photoUrl}
             alt={participant.name}
             width={205}
             height={234}
-            className="h-auto w-full"
+            className={styles.cardImage}
           />
         ) : (
-          <div className="flex aspect-205/234 w-full items-center justify-center rounded-2xl bg-black/30 px-2 text-center text-xs text-amber-100">
-            {participant.name}
-          </div>
+          <div className={styles.cardImageFallback}>{participant.name}</div>
         )}
-        <span className="pointer-events-none absolute inset-0 rounded-2xl ring-0 ring-amber-400 transition group-active:ring-4" />
       </span>
       <Image
         src="/btn-votez.png"
         alt="Votez"
         width={167}
         height={43}
-        className="w-20 transition group-active:scale-95"
+        className={styles.voteButton}
       />
     </button>
   );

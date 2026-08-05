@@ -1,0 +1,79 @@
+.playersSection {
+  max-height: 1170px;
+  overflow-y: auto;
+}
+
+.cardsRow {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.cardsContainer {
+  width: 100%;
+  max-width: 743px;
+  display: grid;
+  grid-template-columns: repeat(2, 205px);
+  justify-content: center;
+  gap: 24px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 205px;
+  outline: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.card:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cardImageWrap {
+  position: relative;
+  width: 205px;
+  overflow: hidden;
+  border-radius: 16px;
+  transition: transform 0.15s ease;
+}
+
+.card:active .cardImageWrap {
+  transform: scale(0.95);
+}
+
+.cardImage {
+  width: 205px;
+  height: auto;
+  display: block;
+}
+
+.cardImageFallback {
+  display: flex;
+  width: 205px;
+  height: 234px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #fde68a;
+}
+
+.voteButton {
+  width: 167px;
+  height: 42.9px;
+  transition: transform 0.15s ease;
+}
+
+.card:active .voteButton {
+  transform: scale(0.95);
+}
