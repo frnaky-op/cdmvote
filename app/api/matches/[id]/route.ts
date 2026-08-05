@@ -34,7 +34,7 @@ export async function PATCH(
   const { id } = await params;
   const existing = await prisma.match.findUnique({
     where: { id },
-    include: { participants: true },
+    include: { participants: true, parentLinks: true },
   });
   if (!existing) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
@@ -42,8 +42,10 @@ export async function PATCH(
   const position = body?.position;
   const survivorsCount = body?.survivorsCount;
   const participantPlayerIds = body?.participantPlayerIds;
+  const parentMatchIds: string[] = Array.isArray(body?.parentMatchIds) ? body.parentMatchIds : [];
   const scheduledStart = body?.scheduledStart;
   const scheduledEnd = body?.scheduledEnd;
+  const hasParents = parentMatchIds.length > 0;
 
   if (!Number.isInteger(position) || position < 1) {
     return NextResponse.json({ error: "Position must be a positive integer" }, { status: 400 });
@@ -54,21 +56,37 @@ export async function PATCH(
       { status: 400 },
     );
   }
-  if (!Array.isArray(participantPlayerIds) || participantPlayerIds.length === 0) {
-    return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
+  if (!hasParents) {
+    if (!Array.isArray(participantPlayerIds) || participantPlayerIds.length === 0) {
+      return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
+    }
+    if (survivorsCount >= participantPlayerIds.length) {
+      return NextResponse.json(
+        { error: "Survivors count must be less than the number of participants" },
+        { status: 400 },
+      );
+    }
   }
-  if (survivorsCount >= participantPlayerIds.length) {
+
+  const existingParentIds = new Set(existing.parentLinks.map((p) => p.parentMatchId));
+  const nextParentIds = new Set(parentMatchIds);
+  const parentsChanged =
+    existingParentIds.size !== nextParentIds.size ||
+    [...existingParentIds].some((parentMatchId) => !nextParentIds.has(parentMatchId));
+
+  if (parentsChanged && existing.state !== "scheduled") {
     return NextResponse.json(
-      { error: "Survivors count must be less than the number of participants" },
-      { status: 400 },
+      { error: "Cannot change parent matches once a match has moved past scheduled" },
+      { status: 409 },
     );
   }
 
   const existingParticipantIds = new Set(existing.participants.map((p) => p.playerId));
-  const nextParticipantIds = new Set<string>(participantPlayerIds);
+  const nextParticipantIds = new Set<string>(hasParents ? [] : participantPlayerIds);
   const participantsChanged =
-    existingParticipantIds.size !== nextParticipantIds.size ||
-    [...existingParticipantIds].some((playerId) => !nextParticipantIds.has(playerId));
+    !hasParents &&
+    (existingParticipantIds.size !== nextParticipantIds.size ||
+      [...existingParticipantIds].some((playerId) => !nextParticipantIds.has(playerId)));
 
   if (participantsChanged && existing.state !== "scheduled") {
     return NextResponse.json(
@@ -77,7 +95,17 @@ export async function PATCH(
     );
   }
 
-  if (participantsChanged) {
+  if (hasParents && parentsChanged) {
+    const parentMatches = await prisma.match.findMany({
+      where: { id: { in: parentMatchIds } },
+      select: { id: true },
+    });
+    if (parentMatches.length !== parentMatchIds.length) {
+      return NextResponse.json({ error: "One or more parent matches not found" }, { status: 400 });
+    }
+  }
+
+  if (!hasParents && participantsChanged) {
     const activePlayers = await prisma.player.findMany({
       where: { id: { in: participantPlayerIds }, status: "active" },
       select: { id: true },
@@ -102,7 +130,19 @@ export async function PATCH(
         },
       });
 
-      if (participantsChanged) {
+      if (parentsChanged) {
+        await tx.matchParent.deleteMany({ where: { matchId: id } });
+        if (hasParents) {
+          await tx.matchParent.createMany({
+            data: parentMatchIds.map((parentMatchId) => ({ matchId: id, parentMatchId })),
+          });
+          // Switching a match to parent-driven clears any manually-picked
+          // participants — they'll be auto-filled once parents are revealed.
+          await tx.matchParticipant.deleteMany({ where: { matchId: id } });
+        }
+      }
+
+      if (!hasParents && participantsChanged) {
         await tx.matchParticipant.deleteMany({ where: { matchId: id } });
         await tx.matchParticipant.createMany({
           data: participantPlayerIds.map((playerId: string) => ({

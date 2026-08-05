@@ -22,8 +22,10 @@ export async function POST(request: NextRequest) {
   const position = body?.position;
   const survivorsCount = body?.survivorsCount;
   const participantPlayerIds = body?.participantPlayerIds;
+  const parentMatchIds: string[] = Array.isArray(body?.parentMatchIds) ? body.parentMatchIds : [];
   const scheduledStart = body?.scheduledStart;
   const scheduledEnd = body?.scheduledEnd;
+  const hasParents = parentMatchIds.length > 0;
 
   if (!Number.isInteger(position) || position < 1) {
     return NextResponse.json({ error: "Position must be a positive integer" }, { status: 400 });
@@ -34,14 +36,18 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  if (!Array.isArray(participantPlayerIds) || participantPlayerIds.length === 0) {
-    return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
-  }
-  if (survivorsCount >= participantPlayerIds.length) {
-    return NextResponse.json(
-      { error: "Survivors count must be less than the number of participants" },
-      { status: 400 },
-    );
+  // Parent-linked matches derive their participants automatically once every
+  // parent is revealed — an empty/omitted list is expected at creation time.
+  if (!hasParents) {
+    if (!Array.isArray(participantPlayerIds) || participantPlayerIds.length === 0) {
+      return NextResponse.json({ error: "At least one participant is required" }, { status: 400 });
+    }
+    if (survivorsCount >= participantPlayerIds.length) {
+      return NextResponse.json(
+        { error: "Survivors count must be less than the number of participants" },
+        { status: 400 },
+      );
+    }
   }
 
   const tournament = await prisma.tournament.findFirst();
@@ -52,15 +58,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const activePlayers = await prisma.player.findMany({
-    where: { id: { in: participantPlayerIds }, status: "active" },
-    select: { id: true },
-  });
-  if (activePlayers.length !== participantPlayerIds.length) {
-    return NextResponse.json(
-      { error: "All participants must be currently-active players" },
-      { status: 400 },
-    );
+  if (hasParents) {
+    const parentMatches = await prisma.match.findMany({
+      where: { id: { in: parentMatchIds } },
+      select: { id: true },
+    });
+    if (parentMatches.length !== parentMatchIds.length) {
+      return NextResponse.json({ error: "One or more parent matches not found" }, { status: 400 });
+    }
+  } else {
+    const activePlayers = await prisma.player.findMany({
+      where: { id: { in: participantPlayerIds }, status: "active" },
+      select: { id: true },
+    });
+    if (activePlayers.length !== participantPlayerIds.length) {
+      return NextResponse.json(
+        { error: "All participants must be currently-active players" },
+        { status: 400 },
+      );
+    }
   }
 
   try {
@@ -74,12 +90,21 @@ export async function POST(request: NextRequest) {
           scheduledEnd: scheduledEnd ? new Date(scheduledEnd) : null,
         },
       });
-      await tx.matchParticipant.createMany({
-        data: participantPlayerIds.map((playerId: string) => ({
-          matchId: created.id,
-          playerId,
-        })),
-      });
+      if (hasParents) {
+        await tx.matchParent.createMany({
+          data: parentMatchIds.map((parentMatchId) => ({
+            matchId: created.id,
+            parentMatchId,
+          })),
+        });
+      } else {
+        await tx.matchParticipant.createMany({
+          data: participantPlayerIds.map((playerId: string) => ({
+            matchId: created.id,
+            playerId,
+          })),
+        });
+      }
       return created;
     });
 

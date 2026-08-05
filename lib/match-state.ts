@@ -490,7 +490,55 @@ export async function revealMatch(
   await publishToPublic(match.tournamentId, event);
   await publishToAdmin(match.tournamentId, event);
 
+  await applyParentAdvancement(matchId);
+
   return { ok: true, match: updatedMatch!, results };
+}
+
+/**
+ * After a match is revealed, checks any child matches (via MatchParent) that
+ * declare it as a parent. For each child still `scheduled` whose *every*
+ * parent match is now `revealed` or `archived`, replaces its participant
+ * list with the union of all parents' advanced/winner players — this is the
+ * only case where auto-fill runs, since a child with an already-started
+ * match (open/closed/revealed) must keep its locked participant list.
+ * Manually-set participants on a still-scheduled child are overwritten; that
+ * match is defined as parent-driven the moment a parent link exists.
+ */
+async function applyParentAdvancement(revealedMatchId: string): Promise<void> {
+  const childLinks = await prisma.matchParent.findMany({
+    where: { parentMatchId: revealedMatchId },
+    select: { matchId: true },
+  });
+  if (childLinks.length === 0) return;
+
+  for (const { matchId } of childLinks) {
+    const child = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { parentLinks: { include: { parentMatch: true } } },
+    });
+    if (!child || child.state !== "scheduled") continue;
+
+    const allParentsDone = child.parentLinks.every(
+      (link) => link.parentMatch.state === "revealed" || link.parentMatch.state === "archived",
+    );
+    if (!allParentsDone) continue;
+
+    const parentMatchIds = child.parentLinks.map((link) => link.parentMatchId);
+    const advancedParticipants = await prisma.matchParticipant.findMany({
+      where: { matchId: { in: parentMatchIds }, result: { in: ["advanced", "winner"] } },
+      select: { playerId: true },
+    });
+    const playerIds = [...new Set(advancedParticipants.map((p) => p.playerId))];
+    if (playerIds.length === 0) continue;
+
+    await prisma.$transaction([
+      prisma.matchParticipant.deleteMany({ where: { matchId } }),
+      prisma.matchParticipant.createMany({
+        data: playerIds.map((playerId) => ({ matchId, playerId })),
+      }),
+    ]);
+  }
 }
 
 /** revealed -> archived. Purely bookkeeping — survivors are already correct
