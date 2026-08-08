@@ -52,6 +52,11 @@
   #msg.err { color:#f87171; }
   .updated { font-size:12px; color:#9aa0aa; margin-top:4px; }
 
+  /* header */
+  .header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .header-toggle { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .header-toggle .label { font-size:13px; font-weight:600; color:#9aa0aa; white-space:nowrap; }
+
   /* voting toggle */
   .toggle-card {
     background:#1a1d24; border:1px solid #262a33; border-radius:10px;
@@ -124,19 +129,19 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>La Coupe d'Humour — Admin</h1>
-  <div class="sub">Tableau de bord — résultats, vote, joueurs</div>
-
-  <!-- Voting on/off (always visible, above the tabs) -->
-  <div class="toggle-card">
+  <div class="header-row">
     <div>
-      <div class="label" id="voting-status-label">Vote : —</div>
-      <div class="desc">Quand c'est désactivé, les visiteurs voient un écran "vote clôturé" et ne peuvent plus voter.</div>
+      <h1>La Coupe d'Humour — Admin</h1>
+      <div class="sub">Tableau de bord — résultats, vote, joueurs</div>
     </div>
-    <label class="switch">
-      <input type="checkbox" id="voting-toggle" disabled>
-      <span class="slider"></span>
-    </label>
+    <!-- Voting on/off (always visible, next to the title) -->
+    <div class="header-toggle" title="Quand c'est désactivé, les visiteurs voient un écran &quot;vote clôturé&quot; et ne peuvent plus voter.">
+      <span class="label" id="voting-status-label">Vote : —</span>
+      <label class="switch">
+        <input type="checkbox" id="voting-toggle" disabled>
+        <span class="slider"></span>
+      </label>
+    </div>
   </div>
 
   <!-- Match number (drives the header/title on the public voting page) -->
