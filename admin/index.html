@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Admin - La Coupe d'Humour</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:#111318;
+    color:#eee;
+    padding:40px 20px 80px;
+  }
+  .wrap { max-width:860px; margin:0 auto; }
+  h1 { font-size:24px; margin-bottom:4px; }
+  .sub { color:#9aa0aa; margin-bottom:28px; font-size:14px; }
+  h2 { font-size:17px; margin:40px 0 14px; }
+
+  .stat-row { display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap; }
+  .stat-card {
+    background:#1a1d24; border:1px solid #262a33; border-radius:10px;
+    padding:16px 20px; flex:1; min-width:140px;
+  }
+  .stat-card .n { font-size:28px; font-weight:700; }
+  .stat-card .l { font-size:12px; color:#9aa0aa; margin-top:4px; }
+
+  table { width:100%; border-collapse:collapse; background:#1a1d24; border-radius:10px; overflow:hidden; }
+  th, td { text-align:left; padding:12px 16px; font-size:14px; vertical-align:middle; }
+  th { background:#20242c; color:#9aa0aa; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.04em; }
+  tr:not(:last-child) td { border-bottom:1px solid #262a33; }
+  .bar-bg { background:#262a33; border-radius:4px; height:8px; width:100%; margin-top:6px; overflow:hidden; }
+  .bar-fill { background:#4f7cff; height:100%; border-radius:4px; transition:width .3s ease; }
+  .deleted-tag { color:#f87171; font-size:11px; }
+  .inactive-tag { color:#fbbf24; font-size:11px; }
+
+  .actions { margin-top:20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  button {
+    font-size:14px; padding:10px 18px; border-radius:8px; border:none; cursor:pointer;
+    font-weight:600;
+  }
+  .btn-neutral { background:#262a33; color:#eee; }
+  .btn-neutral:hover { background:#30343f; }
+  .btn-danger { background:#e5484d; color:#fff; }
+  .btn-danger:hover { background:#c8383d; }
+  .btn-primary { background:#4f7cff; color:#fff; }
+  .btn-primary:hover { background:#3d68eb; }
+  .btn-small { padding:6px 12px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:default; }
+
+  #msg { font-size:13px; margin-top:14px; min-height:18px; }
+  #msg.ok { color:#4ade80; }
+  #msg.err { color:#f87171; }
+  .updated { font-size:12px; color:#9aa0aa; margin-top:4px; }
+
+  /* voting toggle */
+  .toggle-card {
+    background:#1a1d24; border:1px solid #262a33; border-radius:10px;
+    padding:18px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px;
+    margin-bottom:8px;
+  }
+  .toggle-card .label { font-size:15px; font-weight:600; }
+  .toggle-card .desc { font-size:12px; color:#9aa0aa; margin-top:2px; }
+  .match-card input[type=number] {
+    width:70px; background:#111318; border:1px solid #30343f; color:#eee;
+    padding:8px 10px; border-radius:6px; font-size:15px; text-align:center;
+  }
+  .switch { position:relative; width:52px; height:30px; flex-shrink:0; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider {
+    position:absolute; cursor:pointer; inset:0; background:#3a3f4a; border-radius:30px; transition:.2s;
+  }
+  .slider:before {
+    content:""; position:absolute; height:22px; width:22px; left:4px; top:4px;
+    background:#fff; border-radius:50%; transition:.2s;
+  }
+  input:checked + .slider { background:#22c55e; }
+  input:checked + .slider:before { transform:translateX(22px); }
+  input:disabled + .slider { opacity:.5; cursor:default; }
+
+  /* candidate manager */
+  .order-controls { display:flex; flex-direction:column; gap:4px; }
+  .order-controls button { padding:4px 8px; line-height:1; }
+  .cand-table img { width:52px; height:59px; object-fit:cover; border-radius:6px; display:block; background:#000; }
+  .cand-name-cell { min-width:150px; }
+  .cand-name-cell input[type=text] {
+    background:#111318; border:1px solid #30343f; color:#eee; padding:6px 8px; border-radius:6px;
+    font-size:13px; width:100%;
+  }
+  .cand-id { color:#6b7280; font-size:11px; margin-top:2px; }
+  .cand-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .file-label {
+    display:inline-block; background:#262a33; color:#eee; padding:6px 10px; border-radius:6px;
+    font-size:12px; cursor:pointer;
+  }
+  .file-label:hover { background:#30343f; }
+  .file-label input { display:none; }
+  .file-name { font-size:11px; color:#9aa0aa; margin-top:4px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .add-form {
+    background:#1a1d24; border:1px solid #262a33; border-radius:10px; padding:18px 20px;
+    display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-top:14px;
+  }
+  .add-form .field { display:flex; flex-direction:column; gap:6px; }
+  .add-form label { font-size:12px; color:#9aa0aa; }
+  .add-form input[type=text] {
+    background:#111318; border:1px solid #30343f; color:#eee; padding:8px 10px; border-radius:6px; font-size:13px;
+  }
+
+  /* tabs */
+  .tabs { display:flex; gap:4px; margin:28px 0 4px; border-bottom:1px solid #262a33; }
+  .tab-btn {
+    background:transparent; color:#9aa0aa; border:none; padding:10px 6px; margin-right:16px;
+    font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent;
+  }
+  .tab-btn:hover { color:#eee; }
+  .tab-btn.active { color:#eee; border-bottom-color:#4f7cff; }
+  .tab-panel h2:first-child { margin-top:24px; }
+
+  /* QR token sub-list */
+  .qr-tokens-list { max-height:280px; overflow-y:auto; padding:12px; }
+  .qr-tokens-list table { background:#14161c; }
+  .qr-tokens-list th, .qr-tokens-list td { padding:8px 12px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>La Coupe d'Humour — Admin</h1>
+  <div class="sub">Tableau de bord — résultats, vote, joueurs</div>
+
+  <!-- Voting on/off (always visible, above the tabs) -->
+  <div class="toggle-card">
+    <div>
+      <div class="label" id="voting-status-label">Vote : —</div>
+      <div class="desc">Quand c'est désactivé, les visiteurs voient un écran "vote clôturé" et ne peuvent plus voter.</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="voting-toggle" disabled>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Match number (drives the header/title on the public voting page) -->
+  <div class="toggle-card match-card">
+    <div>
+      <div class="label">Numéro du match</div>
+      <div class="desc">Affiché dans l'en-tête et l'onglet du navigateur de la page de vote ("#MATCH<span id="match-number-preview">1</span>").</div>
+    </div>
+    <input type="number" id="match-number-input" min="1" max="999" disabled>
+    <button id="match-number-save-btn" class="btn-primary btn-small" disabled>Enregistrer</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="results">Résultats</button>
+    <button class="tab-btn" data-tab="players">Joueurs</button>
+    <button class="tab-btn" data-tab="qr">QR de vote</button>
+  </div>
+
+  <!-- Results -->
+  <section id="tab-results" class="tab-panel">
+    <h2>Résultats</h2>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="n" id="total-votes">–</div>
+        <div class="l">Votes enregistrés</div>
+      </div>
+      <div class="stat-card">
+        <div class="n" id="pending-votes">–</div>
+        <div class="l">En attente d'écriture (SQLite)</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Candidat</th><th>Votes</th><th>%</th></tr></thead>
+      <tbody id="results-body"><tr><td colspan="3">Chargement…</td></tr></tbody>
+    </table>
+
+    <div class="actions">
+      <button id="refresh-btn" class="btn-neutral">Actualiser</button>
+      <button id="reset-btn" class="btn-danger">Réinitialiser toutes les données</button>
+    </div>
+    <div id="msg"></div>
+    <div class="updated" id="updated-at"></div>
+  </section>
+
+  <!-- Candidate manager -->
+  <section id="tab-players" class="tab-panel" hidden>
+    <h2>Joueurs</h2>
+    <table class="cand-table">
+      <thead><tr><th>Ordre</th><th>Photo</th><th>Nom</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody id="candidates-body"><tr><td colspan="5">Chargement…</td></tr></tbody>
+    </table>
+
+    <div class="add-form">
+      <div class="field">
+        <label>Nom du joueur</label>
+        <input type="text" id="new-name" placeholder="Ex: Karim Bennani">
+      </div>
+      <div class="field">
+        <label>Photo</label>
+        <label class="file-label">Choisir une image
+          <input type="file" id="new-photo" accept="image/png,image/jpeg,image/webp">
+        </label>
+        <div class="file-name" id="new-photo-name"></div>
+      </div>
+      <button id="add-btn" class="btn-primary">Ajouter le joueur</button>
+    </div>
+    <div id="add-msg"></div>
+  </section>
+
+  <!-- QR vote tokens -->
+  <section id="tab-qr" class="tab-panel" hidden>
+    <h2>QR de vote</h2>
+    <p class="sub" style="margin-bottom:14px;">
+      Chaque QR est un lien de vote à usage unique. Une personne scanne son QR,
+      vote, et ce QR ne peut plus être réutilisé (même sur un autre appareil).
+    </p>
+
+    <div class="add-form">
+      <div class="field">
+        <label>Nombre de QR à générer</label>
+        <input type="text" id="qr-count" placeholder="Ex: 100" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Étiquette du lot (optionnel)</label>
+        <input type="text" id="qr-label" placeholder="Ex: Soirée du 12 août">
+      </div>
+      <button id="qr-generate-btn" class="btn-primary">Générer</button>
+    </div>
+    <div id="qr-msg"></div>
+
+    <table class="cand-table" style="margin-top:16px;">
+      <thead><tr><th>Lot</th><th>Généré le</th><th>Utilisés</th><th>Actions</th></tr></thead>
+      <tbody id="qr-batches-body"><tr><td colspan="4">Chargement…</td></tr></tbody>
+    </table>
+  </section>
+
+</div>
+
+<script>
+  const resultsBody = document.getElementById('results-body');
+  const candidatesBody = document.getElementById('candidates-body');
+  const totalEl = document.getElementById('total-votes');
+  const pendingEl = document.getElementById('pending-votes');
+  const msgEl = document.getElementById('msg');
+  const addMsgEl = document.getElementById('add-msg');
+  const updatedEl = document.getElementById('updated-at');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const votingToggle = document.getElementById('voting-toggle');
+  const votingLabel = document.getElementById('voting-status-label');
+  const matchNumberInput = document.getElementById('match-number-input');
+  const matchNumberPreview = document.getElementById('match-number-preview');
+  const matchNumberSaveBtn = document.getElementById('match-number-save-btn');
+
+  function showMsg(el, text, kind) {
+    el.textContent = text;
+    el.className = kind || '';
+  }
+
+  // ---- Results ----
+  async function loadResults() {
+    refreshBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/results');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      totalEl.textContent = data.total;
+      pendingEl.textContent = data.pendingFlush;
+
+      votingToggle.checked = data.votingOpen;
+      votingToggle.disabled = false;
+      votingLabel.textContent = 'Vote : ' + (data.votingOpen ? 'Ouvert' : 'Fermé');
+
+      matchNumberInput.value = data.matchNumber;
+      matchNumberPreview.textContent = data.matchNumber;
+      matchNumberInput.disabled = false;
+      matchNumberSaveBtn.disabled = false;
+
+      if (data.results.length === 0) {
+        resultsBody.innerHTML = '<tr><td colspan="3">Aucun vote pour le moment.</td></tr>';
+      } else {
+        const maxVotes = Math.max(...data.results.map((r) => r.votes), 1);
+        resultsBody.innerHTML = data.results.map((r) => `
+          <tr>
+            <td>${r.name}${r.deleted ? ' <span class="deleted-tag">(supprimé)</span>' : ''}${(!r.deleted && !r.active) ? ' <span class="inactive-tag">(désactivé)</span>' : ''}</td>
+            <td>
+              ${r.votes}
+              <div class="bar-bg"><div class="bar-fill" style="width:${(r.votes / maxVotes) * 100}%"></div></div>
+            </td>
+            <td>${r.percent}%</td>
+          </tr>
+        `).join('');
+      }
+      updatedEl.textContent = 'Dernière mise à jour : ' + new Date().toLocaleTimeString('fr-FR');
+      showMsg(msgEl, '', '');
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors du chargement des résultats.", 'err');
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  async function resetAll() {
+    const sure = confirm("Cette action va supprimer DÉFINITIVEMENT tous les votes enregistrés.\n\nContinuer ?");
+    if (!sure) return;
+    resetBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/reset', { method: 'POST' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      showMsg(msgEl, 'Toutes les données ont été réinitialisées.', 'ok');
+      await loadResults();
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors de la réinitialisation.", 'err');
+    } finally {
+      resetBtn.disabled = false;
+    }
+  }
+
+  votingToggle.addEventListener('change', async () => {
+    const open = votingToggle.checked;
+    votingToggle.disabled = true;
+    try {
+      const res = await fetch('/api/admin/voting-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ open }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      votingLabel.textContent = 'Vote : ' + (open ? 'Ouvert' : 'Fermé');
+    } catch (e) {
+      votingToggle.checked = !open; // revert on failure
+      showMsg(msgEl, "Impossible de changer le statut du vote.", 'err');
+    } finally {
+      votingToggle.disabled = false;
+    }
+  });
+
+  matchNumberSaveBtn.addEventListener('click', async () => {
+    const n = Math.floor(Number(matchNumberInput.value));
+    if (!Number.isFinite(n) || n < 1 || n > 999) {
+      return showMsg(msgEl, 'Numéro de match invalide.', 'err');
+    }
+    matchNumberSaveBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/match-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: n }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      matchNumberPreview.textContent = n;
+      showMsg(msgEl, `Numéro de match mis à jour (#MATCH${n}).`, 'ok');
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors de la mise à jour du numéro de match.", 'err');
+    } finally {
+      matchNumberSaveBtn.disabled = false;
+    }
+  });
+
+  refreshBtn.addEventListener('click', loadResults);
+  resetBtn.addEventListener('click', resetAll);
+
+  // ---- Tabs ----
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach((p) => { p.hidden = true; });
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).hidden = false;
+    });
+  });
+
+  // ---- Candidate manager ----
+  async function loadCandidates() {
+    try {
+      const res = await fetch('/api/admin/candidates');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const list = await res.json();
+
+      if (list.length === 0) {
+        candidatesBody.innerHTML = '<tr><td colspan="5">Aucun joueur.</td></tr>';
+        currentOrder = [];
+        return;
+      }
+
+      // list already comes back ordered by position from the server.
+      currentOrder = list.map((c) => c.id);
+
+      candidatesBody.innerHTML = list.map((c, i) => `
+        <tr data-id="${c.id}">
+          <td>
+            <div class="order-controls">
+              <button class="btn-neutral btn-small move-up-btn" ${i === 0 ? 'disabled' : ''} title="Monter">▲</button>
+              <button class="btn-neutral btn-small move-down-btn" ${i === list.length - 1 ? 'disabled' : ''} title="Descendre">▼</button>
+            </div>
+          </td>
+          <td><img src="${c.photo}" alt="${c.name}"></td>
+          <td class="cand-name-cell">
+            <input type="text" class="name-input" value="${c.name.replace(/"/g, '&quot;')}">
+            <div class="cand-id">${c.id} · ${c.votes} vote(s)</div>
+          </td>
+          <td>
+            <label class="switch" style="width:40px;height:22px;">
+              <input type="checkbox" class="active-toggle" ${c.active ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </td>
+          <td>
+            <div class="cand-actions">
+              <label class="file-label btn-small">Photo
+                <input type="file" class="photo-input" accept="image/png,image/jpeg,image/webp">
+              </label>
+              <button class="btn-neutral btn-small save-btn">Enregistrer</button>
+              <button class="btn-danger btn-small delete-btn">Supprimer</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      candidatesBody.querySelectorAll('tr').forEach((row) => {
+        const id = row.getAttribute('data-id');
+        row.querySelector('.save-btn').addEventListener('click', () => saveCandidate(id, row));
+        row.querySelector('.delete-btn').addEventListener('click', () => deleteCandidate(id, row));
+        row.querySelector('.move-up-btn').addEventListener('click', () => moveCandidate(id, -1));
+        row.querySelector('.move-down-btn').addEventListener('click', () => moveCandidate(id, 1));
+      });
+    } catch (e) {
+      candidatesBody.innerHTML = '<tr><td colspan="5">Erreur de chargement.</td></tr>';
+    }
+  }
+
+  let currentOrder = [];
+
+  async function moveCandidate(id, direction) {
+    const idx = currentOrder.indexOf(id);
+    const swapWith = idx + direction;
+    if (idx === -1 || swapWith < 0 || swapWith >= currentOrder.length) return;
+
+    const newOrder = currentOrder.slice();
+    [newOrder[idx], newOrder[swapWith]] = [newOrder[swapWith], newOrder[idx]];
+
+    try {
+      const res = await fetch('/api/admin/candidates/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: newOrder }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      currentOrder = newOrder;
+      await loadCandidates();
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors du changement d'ordre.", 'err');
+    }
+  }
+
+  async function saveCandidate(id, row) {
+    const name = row.querySelector('.name-input').value.trim();
+    const active = row.querySelector('.active-toggle').checked;
+    const photoFile = row.querySelector('.photo-input').files[0];
+    const saveBtn = row.querySelector('.save-btn');
+
+    const form = new FormData();
+    form.append('name', name);
+    form.append('active', active ? '1' : '0');
+    if (photoFile) form.append('photo', photoFile);
+
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/candidates/' + encodeURIComponent(id), {
+        method: 'PUT',
+        body: form,
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      showMsg(msgEl, 'Joueur mis à jour.', 'ok');
+      await Promise.all([loadCandidates(), loadResults()]);
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors de la mise à jour du joueur.", 'err');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  async function deleteCandidate(id, row) {
+    const sure = confirm("Supprimer définitivement ce joueur ?\n\nSes votes existants resteront comptabilisés dans les résultats, mais il n'apparaîtra plus sur la page de vote.");
+    if (!sure) return;
+    try {
+      const res = await fetch('/api/admin/candidates/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      showMsg(msgEl, 'Joueur supprimé.', 'ok');
+      await Promise.all([loadCandidates(), loadResults()]);
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors de la suppression du joueur.", 'err');
+    }
+  }
+
+  document.getElementById('new-photo').addEventListener('change', (e) => {
+    document.getElementById('new-photo-name').textContent = e.target.files[0] ? e.target.files[0].name : '';
+  });
+
+  document.getElementById('add-btn').addEventListener('click', async () => {
+    const name = document.getElementById('new-name').value.trim();
+    const photoFile = document.getElementById('new-photo').files[0];
+    const addBtn = document.getElementById('add-btn');
+
+    if (!name) return showMsg(addMsgEl, 'Merci de saisir un nom.', 'err');
+    if (!photoFile) return showMsg(addMsgEl, 'Merci de choisir une photo.', 'err');
+
+    const form = new FormData();
+    form.append('name', name);
+    form.append('photo', photoFile);
+
+    addBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/candidates', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      showMsg(addMsgEl, 'Joueur ajouté !', 'ok');
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-photo').value = '';
+      document.getElementById('new-photo-name').textContent = '';
+      await Promise.all([loadCandidates(), loadResults()]);
+    } catch (e) {
+      showMsg(addMsgEl, "Erreur lors de l'ajout (" + e.message + ").", 'err');
+    } finally {
+      addBtn.disabled = false;
+    }
+  });
+
+  // ---- QR vote tokens ----
+  const qrBatchesBody = document.getElementById('qr-batches-body');
+  const qrMsgEl = document.getElementById('qr-msg');
+  const qrGenerateBtn = document.getElementById('qr-generate-btn');
+
+  // Batch ids whose individual-token list is currently expanded, so it
+  // survives a loadQrBatches() re-render (e.g. after generating a new
+  // batch or deleting a token).
+  const expandedBatches = new Set();
+
+  async function loadQrBatches() {
+    try {
+      const res = await fetch('/api/admin/tokens/batches');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const batches = await res.json();
+
+      if (batches.length === 0) {
+        qrBatchesBody.innerHTML = '<tr><td colspan="4">Aucun lot de QR généré.</td></tr>';
+        return;
+      }
+
+      const batchIds = new Set(batches.map((b) => String(b.id)));
+      for (const id of Array.from(expandedBatches)) {
+        if (!batchIds.has(id)) expandedBatches.delete(id);
+      }
+
+      qrBatchesBody.innerHTML = batches.map((b) => {
+        const remaining = b.count - b.used;
+        const deleteDisabled = b.used > 0 ? 'disabled title="Impossible : des QR de ce lot ont déjà voté"' : '';
+        const isOpen = expandedBatches.has(String(b.id));
+        return `
+          <tr data-id="${b.id}">
+            <td>${b.label ? b.label.replace(/</g, '&lt;') : '(sans étiquette)'}<div class="cand-id">#${b.id} · ${b.count} QR</div></td>
+            <td>${new Date(b.createdAt).toLocaleString('fr-FR')}</td>
+            <td>${b.used} / ${b.count}<div class="cand-id">${remaining} restant(s)</div></td>
+            <td>
+              <div class="cand-actions">
+                <a class="btn-neutral btn-small" href="/api/admin/tokens/batches/${b.id}/zip" style="text-decoration:none;">ZIP (QR)</a>
+                <a class="btn-neutral btn-small" href="/api/admin/tokens/batches/${b.id}/pdf" style="text-decoration:none;">PDF (QR)</a>
+                <a class="btn-neutral btn-small" href="/api/admin/tokens/batches/${b.id}/csv" style="text-decoration:none;">CSV</a>
+                <button class="btn-neutral btn-small qr-view-btn">${isOpen ? 'Masquer les QR' : 'Voir les QR'}</button>
+                <button class="btn-danger btn-small qr-delete-btn" ${deleteDisabled}>Supprimer le lot</button>
+              </div>
+            </td>
+          </tr>
+          <tr class="qr-tokens-row" data-tokens-for="${b.id}" ${isOpen ? '' : 'hidden'}>
+            <td colspan="4"><div class="qr-tokens-list" id="qr-tokens-${b.id}">Chargement…</div></td>
+          </tr>
+        `;
+      }).join('');
+
+      qrBatchesBody.querySelectorAll('.qr-delete-btn:not([disabled])').forEach((btn) => {
+        const row = btn.closest('tr');
+        const id = row.getAttribute('data-id');
+        btn.addEventListener('click', () => deleteQrBatch(id));
+      });
+
+      qrBatchesBody.querySelectorAll('.qr-view-btn').forEach((btn) => {
+        const row = btn.closest('tr');
+        const id = row.getAttribute('data-id');
+        btn.addEventListener('click', () => toggleBatchTokens(id));
+      });
+
+      // Re-fetch the list for any batch that was already open, so it stays
+      // in sync with the counts we just refreshed.
+      for (const id of expandedBatches) {
+        loadBatchTokens(id);
+      }
+    } catch (e) {
+      qrBatchesBody.innerHTML = '<tr><td colspan="4">Erreur de chargement.</td></tr>';
+    }
+  }
+
+  async function deleteQrBatch(id) {
+    const sure = confirm("Supprimer ce lot de QR non utilisés ? Cette action est irréversible.");
+    if (!sure) return;
+    try {
+      const res = await fetch('/api/admin/tokens/batches/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      expandedBatches.delete(String(id));
+      showMsg(qrMsgEl, 'Lot supprimé.', 'ok');
+      await loadQrBatches();
+    } catch (e) {
+      showMsg(qrMsgEl, "Erreur lors de la suppression.", 'err');
+    }
+  }
+
+  function toggleBatchTokens(id) {
+    const row = qrBatchesBody.querySelector('tr.qr-tokens-row[data-tokens-for="' + id + '"]');
+    const btn = qrBatchesBody.querySelector('tr[data-id="' + id + '"] .qr-view-btn');
+    if (expandedBatches.has(id)) {
+      expandedBatches.delete(id);
+      row.hidden = true;
+      btn.textContent = 'Voir les QR';
+    } else {
+      expandedBatches.add(id);
+      row.hidden = false;
+      btn.textContent = 'Masquer les QR';
+      loadBatchTokens(id);
+    }
+  }
+
+  async function loadBatchTokens(id) {
+    const container = document.getElementById('qr-tokens-' + id);
+    if (!container) return;
+    container.innerHTML = 'Chargement…';
+    try {
+      const res = await fetch('/api/admin/tokens/batches/' + id + '/tokens');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const tokens = await res.json();
+      renderBatchTokens(id, tokens);
+    } catch (e) {
+      container.innerHTML = '<div class="cand-id">Erreur de chargement.</div>';
+    }
+  }
+
+  function renderBatchTokens(id, tokens) {
+    const container = document.getElementById('qr-tokens-' + id);
+    if (!container) return;
+
+    if (tokens.length === 0) {
+      container.innerHTML = '<div class="cand-id">Aucun QR restant dans ce lot.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>Statut</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${tokens.map((t, i) => `
+            <tr data-token="${t.token}">
+              <td>${i + 1}<div class="cand-id">${t.token}</div></td>
+              <td>${t.used
+                ? `<span class="inactive-tag">Utilisé${t.candidate ? ' · ' + t.candidate : ''}</span>`
+                : '<span style="color:#4ade80;">Disponible</span>'}</td>
+              <td>
+                <div class="cand-actions">
+                  <a class="btn-neutral btn-small" href="/api/admin/tokens/${t.token}/qr.png" target="_blank" rel="noopener" style="text-decoration:none;">QR</a>
+                  <button class="btn-danger btn-small token-delete-btn" ${t.used ? 'disabled title="Déjà utilisé"' : ''}>Supprimer</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    container.querySelectorAll('.token-delete-btn:not([disabled])').forEach((btn) => {
+      const row = btn.closest('tr');
+      const token = row.getAttribute('data-token');
+      btn.addEventListener('click', () => deleteToken(id, token));
+    });
+  }
+
+  async function deleteToken(batchId, token) {
+    const sure = confirm('Supprimer ce QR ? Cette action est irréversible.');
+    if (!sure) return;
+    try {
+      const res = await fetch('/api/admin/tokens/' + encodeURIComponent(token), { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      showMsg(qrMsgEl, 'QR supprimé.', 'ok');
+      await loadQrBatches();
+    } catch (e) {
+      showMsg(qrMsgEl, "Erreur lors de la suppression du QR (" + e.message + ").", 'err');
+    }
+  }
+
+  qrGenerateBtn.addEventListener('click', async () => {
+    const countInput = document.getElementById('qr-count');
+    const labelInput = document.getElementById('qr-label');
+    const count = parseInt(countInput.value, 10);
+    const label = labelInput.value.trim();
+
+    if (!count || count < 1) {
+      return showMsg(qrMsgEl, 'Merci de saisir un nombre valide.', 'err');
+    }
+
+    qrGenerateBtn.disabled = true;
+    try {
+      const res = await fetch('/api/admin/tokens/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count, label }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      showMsg(qrMsgEl, `${count} QR généré(s).`, 'ok');
+      countInput.value = '';
+      labelInput.value = '';
+      await loadQrBatches();
+    } catch (e) {
+      showMsg(qrMsgEl, "Erreur lors de la génération (" + e.message + ").", 'err');
+    } finally {
+      qrGenerateBtn.disabled = false;
+    }
+  });
+
+  loadResults();
+  loadCandidates();
+  loadQrBatches();
+  setInterval(loadResults, 10000);
+</script>
+</body>
+</html>
