@@ -254,7 +254,7 @@
   <section id="tab-podium" class="tab-panel" hidden>
     <div class="podium-stage" id="podium-stage"></div>
     <table id="podium-rest-table">
-      <thead><tr><th>Rang</th><th>Photo</th><th>Nom</th><th>Votes</th></tr></thead>
+      <thead><tr><th>Rang</th><th>Photo</th><th>Nom</th><th>Votes</th><th>%</th></tr></thead>
       <tbody id="podium-rest-body"></tbody>
     </table>
   </section>
@@ -425,7 +425,7 @@
             <div class="podium-medal">${medal}</div>
             ${photo}
             <div class="podium-name">${r.name}</div>
-            <div class="podium-votes">${r.votes} vote(s)</div>
+            <div class="podium-votes">${r.votes} vote(s) &middot; ${r.percent}%</div>
             <div class="podium-base"></div>
           </div>
         `;
@@ -442,6 +442,7 @@
           <td>${r.photo ? `<img src="${r.photo}" alt="${r.name}">` : ''}</td>
           <td>${r.name}${r.deleted ? ' <span class="deleted-tag">(supprimé)</span>' : ''}${(!r.deleted && !r.active) ? ' <span class="inactive-tag">(désactivé)</span>' : ''}</td>
           <td>${r.votes}</td>
+          <td>${r.percent}%</td>
         </tr>
       `).join('');
     }
