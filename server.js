@@ -859,6 +859,28 @@ async function qrPngBuffer(url) {
   });
 }
 
+// Generates PNG buffers for a whole batch of tokens with bounded
+// concurrency, instead of one-at-a-time. A large batch (e.g. 650+ tokens)
+// awaited sequentially can take long enough to blow past a reverse proxy's
+// upstream timeout, producing a 502 to the client even though the request
+// eventually succeeds server-side - this cuts that wall-clock time down
+// roughly by the concurrency factor while still capping how many QR encodes
+// run at once (unlike an unbounded Promise.all over every token).
+async function qrPngBuffersForTokens(req, tokens, concurrency = 20) {
+  const buffers = new Array(tokens.length);
+  let next = 0;
+  async function worker() {
+    while (next < tokens.length) {
+      const i = next++;
+      buffers[i] = await qrPngBuffer(voteUrl(req, tokens[i]));
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, tokens.length) }, worker)
+  );
+  return buffers;
+}
+
 app.post('/api/admin/tokens/generate', requireAdminAuth, (req, res) => {
   const count = Math.floor(Number(req.body && req.body.count));
   const label = ((req.body && req.body.label) || '').trim() || null;
@@ -983,92 +1005,125 @@ app.get('/api/admin/tokens/batches/:id/csv', requireAdminAuth, (req, res) => {
 });
 
 app.get('/api/admin/tokens/batches/:id/zip', requireAdminAuth, async (req, res) => {
-  const batchId = Number(req.params.id);
-  const batch = db.prepare('SELECT * FROM token_batches WHERE id = ?').get(batchId);
-  if (!batch) return res.status(404).json({ error: 'not_found' });
+  try {
+    const batchId = Number(req.params.id);
+    const batch = db.prepare('SELECT * FROM token_batches WHERE id = ?').get(batchId);
+    if (!batch) return res.status(404).json({ error: 'not_found' });
 
-  const rows = db.prepare('SELECT token FROM vote_tokens WHERE batch_id = ? ORDER BY rowid ASC').all(batchId);
+    const rows = db.prepare('SELECT token FROM vote_tokens WHERE batch_id = ? ORDER BY rowid ASC').all(batchId);
+    const tokens = rows.map((r) => r.token);
+    // Generate every QR PNG up front (bounded concurrency) before writing
+    // anything to the response, so a slow/large batch doesn't sit there
+    // trickling bytes while a client-side timeout (e.g. a reverse proxy)
+    // gives up and disconnects mid-stream.
+    const buffers = await qrPngBuffersForTokens(req, tokens);
 
-  res.set('Content-Type', 'application/zip');
-  res.set('Content-Disposition', `attachment; filename="qr-tokens-batch-${batchId}.zip"`);
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="qr-tokens-batch-${batchId}.zip"`);
 
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.on('error', (err) => {
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', (err) => {
+      console.error('ZIP generation failed:', err);
+      if (!res.headersSent) res.status(500);
+      res.end();
+    });
+    // Without this, a client that already disconnected (e.g. after a proxy
+    // timeout) causes an unhandled 'error' event on the response stream
+    // when we try to keep writing to it - which crashes the whole process,
+    // not just this request.
+    res.on('error', (err) => {
+      console.error('ZIP response stream error (client likely disconnected):', err.message);
+    });
+    archive.pipe(res);
+
+    const pad = String(tokens.length).length;
+    tokens.forEach((token, i) => {
+      const seq = String(i + 1).padStart(pad, '0');
+      archive.append(buffers[i], { name: `${seq}-${token}.png` });
+    });
+
+    await archive.finalize();
+  } catch (err) {
     console.error('ZIP generation failed:', err);
-    if (!res.headersSent) res.status(500);
-    res.end();
-  });
-  archive.pipe(res);
-
-  for (let i = 0; i < rows.length; i++) {
-    const token = rows[i].token;
-    const buf = await qrPngBuffer(voteUrl(req, token));
-    const seq = String(i + 1).padStart(String(rows.length).length, '0');
-    archive.append(buf, { name: `${seq}-${token}.png` });
+    if (!res.headersSent) res.status(500).json({ error: 'zip_generation_failed' });
+    else res.end();
   }
-
-  await archive.finalize();
 });
 
 // Printable PDF sheet of every QR in a batch, laid out 3 per row so it can
 // be cut up and handed out. Layout mirrors the ZIP export's data (one QR
 // per token) but is meant for printing rather than distribution as files.
 app.get('/api/admin/tokens/batches/:id/pdf', requireAdminAuth, async (req, res) => {
-  const batchId = Number(req.params.id);
-  const batch = db.prepare('SELECT * FROM token_batches WHERE id = ?').get(batchId);
-  if (!batch) return res.status(404).json({ error: 'not_found' });
+  try {
+    const batchId = Number(req.params.id);
+    const batch = db.prepare('SELECT * FROM token_batches WHERE id = ?').get(batchId);
+    if (!batch) return res.status(404).json({ error: 'not_found' });
 
-  const rows = db.prepare('SELECT token FROM vote_tokens WHERE batch_id = ? ORDER BY rowid ASC').all(batchId);
+    const rows = db.prepare('SELECT token FROM vote_tokens WHERE batch_id = ? ORDER BY rowid ASC').all(batchId);
+    const tokens = rows.map((r) => r.token);
+    // Generate every QR PNG up front (bounded concurrency) before writing
+    // anything to the response - see qrPngBuffersForTokens for why.
+    const buffers = await qrPngBuffersForTokens(req, tokens);
 
-  res.set('Content-Type', 'application/pdf');
-  res.set('Content-Disposition', `attachment; filename="qr-tokens-batch-${batchId}.pdf"`);
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', `attachment; filename="qr-tokens-batch-${batchId}.pdf"`);
 
-  const doc = new PDFDocument({ size: 'A4', margin: 36 });
-  doc.on('error', (err) => {
-    console.error('PDF generation failed:', err);
-    if (!res.headersSent) res.status(500);
-    res.end();
-  });
-  doc.pipe(res);
+    const doc = new PDFDocument({ size: 'A4', margin: 36 });
+    doc.on('error', (err) => {
+      console.error('PDF generation failed:', err);
+      if (!res.headersSent) res.status(500);
+      res.end();
+    });
+    // Without this, a client that already disconnected (e.g. after a proxy
+    // timeout) causes an unhandled 'error' event on the response stream
+    // when we try to keep writing to it - which crashes the whole process,
+    // not just this request.
+    res.on('error', (err) => {
+      console.error('PDF response stream error (client likely disconnected):', err.message);
+    });
+    doc.pipe(res);
 
-  const COLS = 4;
-  const rowsPerPage = 5;
-  // Tighter gaps than before so the QR itself gets to be bigger within the
-  // same fixed 4x5 grid: GAP_X is the horizontal gap between columns,
-  // GAP_Y the vertical gap between rows (kept a bit larger than GAP_X so
-  // rows don't feel cramped against each other's labels).
-  const GAP_X = 10;
-  const GAP_Y = 16;
-  const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const cellWidth = (usableWidth - GAP_X * (COLS - 1)) / COLS;
-  const qrSize = cellWidth - 8;
-  const labelHeight = 14;
-  const cellHeight = qrSize + labelHeight + GAP_Y;
+    const COLS = 4;
+    const rowsPerPage = 5;
+    // Tighter gaps than before so the QR itself gets to be bigger within the
+    // same fixed 4x5 grid: GAP_X is the horizontal gap between columns,
+    // GAP_Y the vertical gap between rows (kept a bit larger than GAP_X so
+    // rows don't feel cramped against each other's labels).
+    const GAP_X = 10;
+    const GAP_Y = 16;
+    const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const cellWidth = (usableWidth - GAP_X * (COLS - 1)) / COLS;
+    const qrSize = cellWidth - 8;
+    const labelHeight = 14;
+    const cellHeight = qrSize + labelHeight + GAP_Y;
 
-  const title = `QR de vote — Lot #${batchId}${batch.label ? ` · ${batch.label}` : ''}`;
-  doc.fontSize(14).text(title, { align: 'left' });
-  doc.moveDown(0.5);
-  let gridTop = doc.y;
+    const title = `QR de vote — Lot #${batchId}${batch.label ? ` · ${batch.label}` : ''}`;
+    doc.fontSize(14).text(title, { align: 'left' });
+    doc.moveDown(0.5);
+    let gridTop = doc.y;
 
-  for (let i = 0; i < rows.length; i++) {
-    const col = i % COLS;
-    const rowInPage = Math.floor((i % (rowsPerPage * COLS)) / COLS);
+    for (let i = 0; i < tokens.length; i++) {
+      const col = i % COLS;
+      const rowInPage = Math.floor((i % (rowsPerPage * COLS)) / COLS);
 
-    if (i > 0 && i % (rowsPerPage * COLS) === 0) {
-      doc.addPage();
-      gridTop = doc.page.margins.top;
+      if (i > 0 && i % (rowsPerPage * COLS) === 0) {
+        doc.addPage();
+        gridTop = doc.page.margins.top;
+      }
+
+      const x = doc.page.margins.left + col * (cellWidth + GAP_X);
+      const y = gridTop + rowInPage * cellHeight;
+
+      doc.image(buffers[i], x + (cellWidth - qrSize) / 2, y, { width: qrSize, height: qrSize });
+      // doc.fontSize(8).text(tokens[i], x, y + qrSize + 8, { width: cellWidth, align: 'center' });
     }
 
-    const x = doc.page.margins.left + col * (cellWidth + GAP_X);
-    const y = gridTop + rowInPage * cellHeight;
-
-    const token = rows[i].token;
-    const buf = await qrPngBuffer(voteUrl(req, token));
-    doc.image(buf, x + (cellWidth - qrSize) / 2, y, { width: qrSize, height: qrSize });
-    // doc.fontSize(8).text(token, x, y + qrSize + 8, { width: cellWidth, align: 'center' });
+    doc.end();
+  } catch (err) {
+    console.error('PDF generation failed:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'pdf_generation_failed' });
+    else res.end();
   }
-
-  doc.end();
 });
 
 app.delete('/api/admin/tokens/batches/:id', requireAdminAuth, (req, res) => {
