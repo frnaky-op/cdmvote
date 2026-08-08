@@ -854,7 +854,7 @@ async function qrPngBuffer(url) {
   return QRCode.toBuffer(url, {
     type: 'png',
     width: 512,
-    margin: 2,
+    margin: 0,
     color: { dark: '#000000', light: '#ffffff' },
   });
 }
@@ -1033,12 +1033,17 @@ app.get('/api/admin/tokens/batches/:id/pdf', requireAdminAuth, async (req, res) 
 
   const COLS = 4;
   const rowsPerPage = 5;
-  const GAP = 16;
+  // Tighter gaps than before so the QR itself gets to be bigger within the
+  // same fixed 4x5 grid: GAP_X is the horizontal gap between columns,
+  // GAP_Y the vertical gap between rows (kept a bit larger than GAP_X so
+  // rows don't feel cramped against each other's labels).
+  const GAP_X = 10;
+  const GAP_Y = 16;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const cellWidth = (usableWidth - GAP * (COLS - 1)) / COLS;
-  const qrSize = cellWidth - 20;
-  const labelHeight = 16;
-  const cellHeight = qrSize + labelHeight + GAP;
+  const cellWidth = (usableWidth - GAP_X * (COLS - 1)) / COLS;
+  const qrSize = cellWidth - 8;
+  const labelHeight = 14;
+  const cellHeight = qrSize + labelHeight + GAP_Y;
 
   const title = `QR de vote — Lot #${batchId}${batch.label ? ` · ${batch.label}` : ''}`;
   doc.fontSize(14).text(title, { align: 'left' });
@@ -1054,13 +1059,13 @@ app.get('/api/admin/tokens/batches/:id/pdf', requireAdminAuth, async (req, res) 
       gridTop = doc.page.margins.top;
     }
 
-    const x = doc.page.margins.left + col * (cellWidth + GAP);
+    const x = doc.page.margins.left + col * (cellWidth + GAP_X);
     const y = gridTop + rowInPage * cellHeight;
 
     const token = rows[i].token;
     const buf = await qrPngBuffer(voteUrl(req, token));
     doc.image(buf, x + (cellWidth - qrSize) / 2, y, { width: qrSize, height: qrSize });
-    doc.fontSize(8).text(token, x, y + qrSize + 2, { width: cellWidth, align: 'center' });
+    // doc.fontSize(8).text(token, x, y + qrSize + 8, { width: cellWidth, align: 'center' });
   }
 
   doc.end();
