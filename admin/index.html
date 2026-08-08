@@ -9,20 +9,18 @@
     font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     background:#111318;
     color:#eee;
-    padding:40px 20px 80px;
+    padding:24px 20px 80px;
   }
   .wrap { max-width:860px; margin:0 auto; }
-  h1 { font-size:24px; margin-bottom:4px; }
-  .sub { color:#9aa0aa; margin-bottom:28px; font-size:14px; }
-  h2 { font-size:17px; margin:40px 0 14px; }
+  .sub { color:#9aa0aa; font-size:14px; }
 
-  .stat-row { display:flex; gap:16px; margin-bottom:24px; flex-wrap:wrap; }
-  .stat-card {
-    background:#1a1d24; border:1px solid #262a33; border-radius:10px;
-    padding:16px 20px; flex:1; min-width:140px;
+  .stat-row { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .stat-chip {
+    background:#1a1d24; border:1px solid #262a33; border-radius:8px;
+    padding:6px 12px; display:flex; align-items:baseline; gap:6px;
   }
-  .stat-card .n { font-size:28px; font-weight:700; }
-  .stat-card .l { font-size:12px; color:#9aa0aa; margin-top:4px; }
+  .stat-chip .n { font-size:15px; font-weight:700; }
+  .stat-chip .l { font-size:11px; color:#9aa0aa; }
 
   table { width:100%; border-collapse:collapse; background:#1a1d24; border-radius:10px; overflow:hidden; }
   th, td { text-align:left; padding:12px 16px; font-size:14px; vertical-align:middle; }
@@ -52,23 +50,44 @@
   #msg.err { color:#f87171; }
   .updated { font-size:12px; color:#9aa0aa; margin-top:4px; }
 
-  /* header */
-  .header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  /* top bar: brand + tabs on the left, match/vote controls on the right */
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    padding-bottom:14px; margin-bottom:20px; border-bottom:1px solid #262a33;
+  }
+  .topbar-left { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .brand { font-size:14px; font-weight:700; color:#eee; white-space:nowrap; }
+  .header-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .header-toggle { display:flex; align-items:center; gap:10px; flex-shrink:0; }
   .header-toggle .label { font-size:13px; font-weight:600; color:#9aa0aa; white-space:nowrap; }
 
-  /* voting toggle */
-  .toggle-card {
+  /* modal */
+  .modal-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay[hidden] { display:none; }
+  .modal-box {
     background:#1a1d24; border:1px solid #262a33; border-radius:10px;
-    padding:18px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px;
-    margin-bottom:8px;
+    padding:20px; width:100%; max-width:340px;
   }
-  .toggle-card .label { font-size:15px; font-weight:600; }
-  .toggle-card .desc { font-size:12px; color:#9aa0aa; margin-top:2px; }
-  .match-card input[type=number] {
-    width:70px; background:#111318; border:1px solid #30343f; color:#eee;
-    padding:8px 10px; border-radius:6px; font-size:15px; text-align:center;
+  .modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .modal-head .label { font-size:15px; font-weight:600; }
+  .modal-close {
+    background:transparent; color:#9aa0aa; padding:0 4px; font-size:20px; line-height:1;
   }
+  .modal-close:hover { color:#eee; background:transparent; }
+  .modal-box .desc { font-size:12px; color:#9aa0aa; }
+  .modal-field { margin-bottom:16px; }
+  .modal-field label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; }
+  .modal-field .desc { margin-bottom:8px; }
+  .modal-field input[type=number] {
+    width:100%; background:#111318; border:1px solid #30343f; color:#eee;
+    padding:8px 10px; border-radius:6px; font-size:15px;
+  }
+  .modal-actions { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
+
+  /* voting toggle */
   .switch { position:relative; width:52px; height:30px; flex-shrink:0; }
   .switch input { opacity:0; width:0; height:0; }
   .slider {
@@ -111,15 +130,41 @@
     background:#111318; border:1px solid #30343f; color:#eee; padding:8px 10px; border-radius:6px; font-size:13px;
   }
 
-  /* tabs */
-  .tabs { display:flex; gap:4px; margin:28px 0 4px; border-bottom:1px solid #262a33; }
+  /* tabs (now part of .topbar) */
+  .tabs { display:flex; gap:4px; }
   .tab-btn {
-    background:transparent; color:#9aa0aa; border:none; padding:10px 6px; margin-right:16px;
-    font-size:14px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent;
+    background:transparent; color:#9aa0aa; border:none; padding:6px 12px; border-radius:6px;
+    font-size:13px; font-weight:600; cursor:pointer;
   }
-  .tab-btn:hover { color:#eee; }
-  .tab-btn.active { color:#eee; border-bottom-color:#4f7cff; }
-  .tab-panel h2:first-child { margin-top:24px; }
+  .tab-btn:hover { color:#eee; background:#1a1d24; }
+  .tab-btn.active { color:#fff; background:#262a33; }
+
+  /* podium */
+  .podium-stage {
+    display:flex; align-items:flex-end; justify-content:center; gap:16px;
+    margin-bottom:28px; flex-wrap:wrap; padding-top:20px;
+  }
+  .podium-spot { display:flex; flex-direction:column; align-items:center; gap:6px; width:120px; }
+  .podium-photo {
+    width:88px; height:100px; object-fit:cover; border-radius:10px; border:3px solid #262a33; background:#000;
+  }
+  .podium-spot[data-rank="1"] { order:2; }
+  .podium-spot[data-rank="2"] { order:1; }
+  .podium-spot[data-rank="3"] { order:3; }
+  .podium-spot[data-rank="1"] .podium-photo { width:108px; height:122px; border-color:#ffd75a; }
+  .podium-spot[data-rank="2"] .podium-photo { border-color:#c9c9c9; }
+  .podium-spot[data-rank="3"] .podium-photo { border-color:#cd7f32; }
+  .podium-medal { font-size:20px; font-weight:800; }
+  .podium-name { font-size:13px; font-weight:600; text-align:center; }
+  .podium-votes { font-size:11px; color:#9aa0aa; }
+  .podium-base { width:100%; border-radius:6px 6px 0 0; }
+  .podium-spot[data-rank="1"] .podium-base { height:64px; background:#ffd75a1a; border-top:3px solid #ffd75a; }
+  .podium-spot[data-rank="2"] .podium-base { height:44px; background:#ffffff11; border-top:3px solid #c9c9c9; }
+  .podium-spot[data-rank="3"] .podium-base { height:28px; background:#cd7f321a; border-top:3px solid #cd7f32; }
+  #podium-rest-table td img {
+    width:36px; height:41px; object-fit:cover; border-radius:5px; display:block; background:#000;
+  }
+  #podium-empty { color:#9aa0aa; font-size:13px; }
 
   /* QR token sub-list */
   .qr-tokens-list { max-height:280px; overflow-y:auto; padding:12px; }
@@ -129,48 +174,66 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="header-row">
-    <div>
-      <h1>La Coupe d'Humour — Admin</h1>
-      <div class="sub">Tableau de bord — résultats, vote, joueurs</div>
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="brand">La Coupe d'Humour — Admin</span>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="results">Résultats</button>
+        <button class="tab-btn" data-tab="podium">Podium</button>
+        <button class="tab-btn" data-tab="players">Joueurs</button>
+        <button class="tab-btn" data-tab="qr">QR de vote</button>
+      </nav>
     </div>
-    <!-- Voting on/off (always visible, next to the title) -->
-    <div class="header-toggle" title="Quand c'est désactivé, les visiteurs voient un écran &quot;vote clôturé&quot; et ne peuvent plus voter.">
-      <span class="label" id="voting-status-label">Vote : —</span>
-      <label class="switch">
-        <input type="checkbox" id="voting-toggle" disabled>
-        <span class="slider"></span>
-      </label>
+    <div class="header-actions">
+      <!-- Match number (drives the header/title on the public voting page) -->
+      <button id="match-number-btn" class="btn-neutral btn-small">Match #<span id="match-number-badge">1</span></button>
+      <!-- Voting on/off (always visible, next to the title) -->
+      <div class="header-toggle" title="Quand c'est désactivé, les visiteurs voient un écran &quot;vote clôturé&quot; et ne peuvent plus voter.">
+        <span class="label" id="voting-status-label">Vote : —</span>
+        <label class="switch">
+          <input type="checkbox" id="voting-toggle" disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
   </div>
 
-  <!-- Match number (drives the header/title on the public voting page) -->
-  <div class="toggle-card match-card">
-    <div>
-      <div class="label">Numéro du match</div>
-      <div class="desc">Affiché dans l'en-tête et l'onglet du navigateur de la page de vote ("#MATCH<span id="match-number-preview">1</span>").</div>
-    </div>
-    <input type="number" id="match-number-input" min="1" max="999" disabled>
-    <button id="match-number-save-btn" class="btn-primary btn-small" disabled>Enregistrer</button>
-  </div>
+  <!-- Match number / podium size edit popup -->
+  <div id="match-number-modal" class="modal-overlay" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="label">Paramètres du match</div>
+        <button id="match-number-modal-close" class="modal-close" type="button" aria-label="Fermer">&times;</button>
+      </div>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="results">Résultats</button>
-    <button class="tab-btn" data-tab="players">Joueurs</button>
-    <button class="tab-btn" data-tab="qr">QR de vote</button>
+      <div class="modal-field">
+        <label>Numéro du match</label>
+        <div class="desc">Affiché dans l'en-tête et l'onglet du navigateur de la page de vote ("#MATCH<span id="match-number-preview">1</span>").</div>
+        <input type="number" id="match-number-input" min="1" max="999" disabled>
+      </div>
+
+      <div class="modal-field">
+        <label>Joueurs affichés au podium (N)</label>
+        <div class="desc">Le top 3 s'affiche sur le podium, les suivants (4 à N) en liste en dessous, dans l'onglet Podium.</div>
+        <input type="number" id="podium-count-input" min="1" max="999" disabled>
+      </div>
+
+      <div class="modal-actions">
+        <button id="match-number-save-btn" class="btn-primary btn-small" disabled>Enregistrer</button>
+      </div>
+    </div>
   </div>
 
   <!-- Results -->
   <section id="tab-results" class="tab-panel">
-    <h2>Résultats</h2>
     <div class="stat-row">
-      <div class="stat-card">
-        <div class="n" id="total-votes">–</div>
-        <div class="l">Votes enregistrés</div>
+      <div class="stat-chip">
+        <span class="n" id="total-votes">–</span>
+        <span class="l">votes enregistrés</span>
       </div>
-      <div class="stat-card">
-        <div class="n" id="pending-votes">–</div>
-        <div class="l">En attente d'écriture (SQLite)</div>
+      <div class="stat-chip">
+        <span class="n" id="pending-votes">–</span>
+        <span class="l">en attente (SQLite)</span>
       </div>
     </div>
 
@@ -187,9 +250,17 @@
     <div class="updated" id="updated-at"></div>
   </section>
 
+  <!-- Podium -->
+  <section id="tab-podium" class="tab-panel" hidden>
+    <div class="podium-stage" id="podium-stage"></div>
+    <table id="podium-rest-table">
+      <thead><tr><th>Rang</th><th>Photo</th><th>Nom</th><th>Votes</th></tr></thead>
+      <tbody id="podium-rest-body"></tbody>
+    </table>
+  </section>
+
   <!-- Candidate manager -->
   <section id="tab-players" class="tab-panel" hidden>
-    <h2>Joueurs</h2>
     <table class="cand-table">
       <thead><tr><th>Ordre</th><th>Photo</th><th>Nom</th><th>Statut</th><th>Actions</th></tr></thead>
       <tbody id="candidates-body"><tr><td colspan="5">Chargement…</td></tr></tbody>
@@ -214,7 +285,6 @@
 
   <!-- QR vote tokens -->
   <section id="tab-qr" class="tab-panel" hidden>
-    <h2>QR de vote</h2>
     <p class="sub" style="margin-bottom:14px;">
       Chaque QR est un lien de vote à usage unique. Une personne scanne son QR,
       vote, et ce QR ne peut plus être réutilisé (même sur un autre appareil).
@@ -256,6 +326,30 @@
   const matchNumberInput = document.getElementById('match-number-input');
   const matchNumberPreview = document.getElementById('match-number-preview');
   const matchNumberSaveBtn = document.getElementById('match-number-save-btn');
+  const matchNumberBadge = document.getElementById('match-number-badge');
+  const matchNumberBtn = document.getElementById('match-number-btn');
+  const matchNumberModal = document.getElementById('match-number-modal');
+  const matchNumberModalClose = document.getElementById('match-number-modal-close');
+  const podiumCountInput = document.getElementById('podium-count-input');
+  const podiumStage = document.getElementById('podium-stage');
+  const podiumRestTable = document.getElementById('podium-rest-table');
+  const podiumRestBody = document.getElementById('podium-rest-body');
+
+  function openMatchNumberModal() {
+    matchNumberModal.hidden = false;
+    matchNumberInput.focus();
+  }
+  function closeMatchNumberModal() {
+    matchNumberModal.hidden = true;
+  }
+  matchNumberBtn.addEventListener('click', openMatchNumberModal);
+  matchNumberModalClose.addEventListener('click', closeMatchNumberModal);
+  matchNumberModal.addEventListener('click', (e) => {
+    if (e.target === matchNumberModal) closeMatchNumberModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !matchNumberModal.hidden) closeMatchNumberModal();
+  });
 
   function showMsg(el, text, kind) {
     el.textContent = text;
@@ -279,8 +373,13 @@
 
       matchNumberInput.value = data.matchNumber;
       matchNumberPreview.textContent = data.matchNumber;
+      matchNumberBadge.textContent = data.matchNumber;
       matchNumberInput.disabled = false;
+      podiumCountInput.value = data.podiumCount;
+      podiumCountInput.disabled = false;
       matchNumberSaveBtn.disabled = false;
+
+      renderPodium(data);
 
       if (data.results.length === 0) {
         resultsBody.innerHTML = '<tr><td colspan="3">Aucun vote pour le moment.</td></tr>';
@@ -306,6 +405,48 @@
     }
   }
 
+  function renderPodium(data) {
+    const n = Math.max(1, data.podiumCount || 3);
+    const top = data.results.slice(0, n);
+    const podiumSpots = top.slice(0, 3);
+    const rest = top.slice(3);
+
+    if (podiumSpots.length === 0) {
+      podiumStage.innerHTML = '<div id="podium-empty">Aucun vote pour le moment.</div>';
+    } else {
+      podiumStage.innerHTML = podiumSpots.map((r, i) => {
+        const rank = i + 1;
+        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+        const photo = r.photo
+          ? `<img class="podium-photo" src="${r.photo}" alt="${r.name}">`
+          : '<div class="podium-photo"></div>';
+        return `
+          <div class="podium-spot" data-rank="${rank}">
+            <div class="podium-medal">${medal}</div>
+            ${photo}
+            <div class="podium-name">${r.name}</div>
+            <div class="podium-votes">${r.votes} vote(s)</div>
+            <div class="podium-base"></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    if (rest.length === 0) {
+      podiumRestTable.hidden = true;
+    } else {
+      podiumRestTable.hidden = false;
+      podiumRestBody.innerHTML = rest.map((r, i) => `
+        <tr>
+          <td>${i + 4}</td>
+          <td>${r.photo ? `<img src="${r.photo}" alt="${r.name}">` : ''}</td>
+          <td>${r.name}${r.deleted ? ' <span class="deleted-tag">(supprimé)</span>' : ''}${(!r.deleted && !r.active) ? ' <span class="inactive-tag">(désactivé)</span>' : ''}</td>
+          <td>${r.votes}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
   async function resetAll() {
     const sure = confirm("Cette action va supprimer DÉFINITIVEMENT tous les votes enregistrés.\n\nContinuer ?");
     if (!sure) return;
@@ -314,7 +455,7 @@
       const res = await fetch('/api/admin/reset', { method: 'POST' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       showMsg(msgEl, 'Toutes les données ont été réinitialisées.', 'ok');
-      await loadResults();
+      await Promise.all([loadResults(), loadQrBatches()]);
     } catch (e) {
       showMsg(msgEl, "Erreur lors de la réinitialisation.", 'err');
     } finally {
@@ -343,21 +484,35 @@
 
   matchNumberSaveBtn.addEventListener('click', async () => {
     const n = Math.floor(Number(matchNumberInput.value));
+    const p = Math.floor(Number(podiumCountInput.value));
     if (!Number.isFinite(n) || n < 1 || n > 999) {
       return showMsg(msgEl, 'Numéro de match invalide.', 'err');
     }
+    if (!Number.isFinite(p) || p < 1 || p > 999) {
+      return showMsg(msgEl, 'Nombre de joueurs au podium invalide.', 'err');
+    }
     matchNumberSaveBtn.disabled = true;
     try {
-      const res = await fetch('/api/admin/match-number', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: n }),
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const [matchRes, podiumRes] = await Promise.all([
+        fetch('/api/admin/match-number', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: n }),
+        }),
+        fetch('/api/admin/podium-count', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: p }),
+        }),
+      ]);
+      if (!matchRes.ok || !podiumRes.ok) throw new Error('HTTP error');
       matchNumberPreview.textContent = n;
-      showMsg(msgEl, `Numéro de match mis à jour (#MATCH${n}).`, 'ok');
+      matchNumberBadge.textContent = n;
+      showMsg(msgEl, `Numéro de match (#MATCH${n}) et podium (top ${p}) mis à jour.`, 'ok');
+      closeMatchNumberModal();
+      await loadResults();
     } catch (e) {
-      showMsg(msgEl, "Erreur lors de la mise à jour du numéro de match.", 'err');
+      showMsg(msgEl, "Erreur lors de la mise à jour des paramètres du match.", 'err');
     } finally {
       matchNumberSaveBtn.disabled = false;
     }

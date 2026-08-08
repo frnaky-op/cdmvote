@@ -1,18 +1,22 @@
 // server.js
 // Express + SQLite backend for "La Coupe d'Humour" voting page.
 //
-// - Votes are recorded in an in-memory Map immediately (so /api/vote and
-//   /api/check never touch the disk on the hot path), and a background
-//   timer flushes everything accumulated since the last tick to SQLite
-//   every 2 seconds in a single batched transaction. Nothing is lost on a
-//   clean shutdown (SIGINT/SIGTERM flush before exit); a hard crash could
-//   lose at most the last <2s of votes.
+// - Votes are recorded in an in-memory Map immediately (so /api/vote never
+//   touches the disk on the hot path), and a background timer flushes
+//   everything accumulated since the last tick to SQLite every 2 seconds in
+//   a single batched transaction. Nothing is lost on a clean shutdown
+//   (SIGINT/SIGTERM flush before exit); a hard crash could lose at most the
+//   last <2s of votes.
 // - Candidates (players) are stored in SQLite and mirrored into an
 //   in-memory cache, managed entirely from /admin: add, rename, replace
 //   photo, deactivate/reactivate, or permanently delete.
 // - Voting can be paused/resumed at any time from /admin without taking
 //   the site down - the page just shows a "voting closed" screen while
 //   still honouring anyone who already voted (they still see "done").
+// - Vote identity is the single-use QR token, not the browser: the same
+//   device can legitimately cast several votes (e.g. a shared tablet at the
+//   door), each with its own token. The voter_token cookie is kept only as
+//   an audit trail (which browser cast a given vote), not as a gate.
 
 const express = require('express');
 const path = require('path');
@@ -59,8 +63,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS votes (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     candidate    TEXT NOT NULL,
-    voter_token  TEXT NOT NULL UNIQUE,
-    qr_token     TEXT,
+    voter_token  TEXT NOT NULL,
+    qr_token     TEXT UNIQUE,
     ip           TEXT,
     user_agent   TEXT,
     created_at   DATETIME NOT NULL
@@ -105,6 +109,37 @@ db.exec(`
   }
 }
 
+// Migration: vote identity moved from "one vote per browser" to "one vote
+// per QR token" - a device/browser can now legitimately cast several votes
+// (e.g. a shared tablet at the door), so voter_token can no longer be
+// UNIQUE, and qr_token (already the real per-vote identity, enforced in
+// memory via tokenMeta.used) takes over that constraint at the DB level
+// too. SQLite has no ALTER TABLE for dropping/adding constraints, so the
+// table is rebuilt when the old constraint is detected.
+{
+  const tableSql = db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'votes'`)
+    .get();
+  if (tableSql && /voter_token\s+TEXT\s+NOT\s+NULL\s+UNIQUE/i.test(tableSql.sql)) {
+    db.exec(`
+      CREATE TABLE votes_new (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        candidate    TEXT NOT NULL,
+        voter_token  TEXT NOT NULL,
+        qr_token     TEXT UNIQUE,
+        ip           TEXT,
+        user_agent   TEXT,
+        created_at   DATETIME NOT NULL
+      );
+      INSERT INTO votes_new (id, candidate, voter_token, qr_token, ip, user_agent, created_at)
+        SELECT id, candidate, voter_token, qr_token, ip, user_agent, created_at FROM votes;
+      DROP TABLE votes;
+      ALTER TABLE votes_new RENAME TO votes;
+    `);
+    console.log('[migration] votes.voter_token is no longer UNIQUE; votes.qr_token is now UNIQUE.');
+  }
+}
+
 // Seed the original 8 players once, on first run only.
 if (db.prepare('SELECT COUNT(*) c FROM candidates').get().c === 0) {
   const seed = [
@@ -135,6 +170,10 @@ if (!db.prepare('SELECT value FROM settings WHERE key = ?').get('match_number'))
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('match_number', '1');
 }
 
+if (!db.prepare('SELECT value FROM settings WHERE key = ?').get('podium_count')) {
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('podium_count', '3');
+}
+
 const insertVoteStmt = db.prepare(
   `INSERT OR IGNORE INTO votes (candidate, voter_token, qr_token, ip, user_agent, created_at)
    VALUES (@candidate, @voter_token, @qr_token, @ip, @user_agent, @created_at)`
@@ -152,14 +191,17 @@ const markManyTokensUsed = db.transaction((rows) => {
 
 // ---- In-memory state (source of truth for the hot path) -------------------
 
-// voterIndex: voter_token -> candidate id.
+// voterIndex: qr_token -> candidate id. Vote identity is the QR token, not
+// the browser - the same device can legitimately cast several votes (each
+// with its own token), so this is keyed by qr_token rather than the
+// voter_token cookie.
 const voterIndex = new Map();
 
 // tally: candidate id -> vote count (includes ids of deleted candidates,
 // so historical results stay intact even after a candidate is removed).
 const tally = new Map();
 
-// pendingWrites: voter_token -> full row waiting to be persisted to SQLite.
+// pendingWrites: qr_token -> full row waiting to be persisted to SQLite.
 let pendingWrites = new Map();
 
 // tokenMeta: qr token -> { batchId, used, candidate }. Pre-loaded from SQLite
@@ -240,10 +282,20 @@ let matchNumber = 1;
   matchNumber = row ? Number(row.value) || 1 : 1;
 }
 
+// How many ranked players the admin's Podium tab shows (top 3 as the podium
+// itself, the rest as a ranked list below it) - set from /admin.
+let podiumCount = 3;
+{
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('podium_count');
+  podiumCount = row ? Number(row.value) || 3 : 3;
+}
+
 // Load existing votes into memory on startup so counts/duplicate checks
-// survive a restart.
-for (const row of db.prepare('SELECT candidate, voter_token FROM votes').all()) {
-  voterIndex.set(row.voter_token, row.candidate);
+// survive a restart. Falls back to a synthetic key for pre-QR-token
+// legacy rows (qr_token was nullable before it became mandatory), so they
+// don't all collapse into a single voterIndex entry.
+for (const row of db.prepare('SELECT id, candidate, qr_token FROM votes').all()) {
+  voterIndex.set(row.qr_token || `legacy-${row.id}`, row.candidate);
   tally.set(row.candidate, (tally.get(row.candidate) || 0) + 1);
 }
 console.log(`Loaded ${voterIndex.size} existing votes and ${candidatesCache.size} candidates from ${DB_PATH}`);
@@ -257,8 +309,8 @@ function flushToDisk() {
     } catch (err) {
       console.error(`Failed to flush ${rows.length} vote(s) to disk:`, err);
       for (const row of rows) {
-        if (!pendingWrites.has(row.voter_token)) {
-          pendingWrites.set(row.voter_token, row);
+        if (!pendingWrites.has(row.qr_token)) {
+          pendingWrites.set(row.qr_token, row);
         }
       }
     }
@@ -343,6 +395,7 @@ const STATIC_IMAGE_VERSION_TARGETS = [
   'images/sponsors.png',
   'images/Trophy.png',
   'images/btn-votez.png',
+  'images/icon-done.png',
   'fonts/Hanson-Bold.ttf',
 ];
 
@@ -366,7 +419,7 @@ app.get('/', (req, res) => {
   // Tells the browser to purge its HTTP cache for this origin the moment
   // this request lands - cleans up anyone whose old cached assets/pages
   // are still hanging around from before the cache-busting fix, without
-  // touching cookies (so voter_token / vote-once protection is untouched).
+  // touching cookies.
   res.set('Clear-Site-Data', '"cache"');
   res.send(renderVersionedHtml(path.join(PUBLIC_DIR, 'index.html'), [
     ['{{MATCH_NUMBER}}', String(matchNumber)],
@@ -501,12 +554,6 @@ app.get('/api/candidates', (req, res) => {
   res.send(getCandidatesJson());
 });
 
-app.get('/api/check', (req, res) => {
-  const token = getOrCreateVoterToken(req, res);
-  const candidate = voterIndex.get(token) || null;
-  res.json({ voted: !!candidate, candidate });
-});
-
 app.get('/api/token-status', (req, res) => {
   const token = String(req.query.t || '');
   if (!token) return res.json({ present: false });
@@ -518,11 +565,15 @@ app.get('/api/token-status', (req, res) => {
 });
 
 app.post('/api/vote', (req, res) => {
+  // The voter_token cookie is kept purely as an audit trail (which browser
+  // cast this vote) - it is no longer a gate. Vote identity is the QR
+  // token: it is what's required to be valid and unused below, and it's
+  // what everything downstream (voterIndex, pendingWrites) is keyed by.
+  // This means the same device can legitimately cast multiple votes (each
+  // with its own token) - e.g. a shared tablet at the door.
   const cookieToken = getOrCreateVoterToken(req, res);
   const { candidate, token: qrToken } = req.body || {};
 
-  // --- QR-token gate: a valid, unused token is now required to vote at all
-  // (no more voting off the cookie alone) ---
   if (!qrToken) {
     return res.status(400).json({ error: 'token_required' });
   }
@@ -532,12 +583,6 @@ app.post('/api/vote', (req, res) => {
   }
   if (qrMeta.used) {
     return res.status(409).json({ error: 'token_already_used', candidate: qrMeta.candidate });
-  }
-
-  // --- Per-browser gate (always applies, QR or not - defense in depth) ---
-  const existing = voterIndex.get(cookieToken);
-  if (existing) {
-    return res.status(409).json({ error: 'already_voted', candidate: existing });
   }
 
   if (!votingOpen) {
@@ -551,9 +596,9 @@ app.post('/api/vote', (req, res) => {
 
   // Record immediately in memory - this is what makes concurrent bursts
   // safe and fast: no disk write is on this request's critical path.
-  voterIndex.set(cookieToken, candidate);
+  voterIndex.set(qrToken, candidate);
   tally.set(candidate, (tally.get(candidate) || 0) + 1);
-  pendingWrites.set(cookieToken, {
+  pendingWrites.set(qrToken, {
     candidate,
     voter_token: cookieToken,
     qr_token: qrToken,
@@ -600,6 +645,7 @@ app.get('/api/admin/results', requireAdminAuth, (req, res) => {
       return {
         candidate: id,
         name: cand ? cand.name : `${id} (supprimé)`,
+        photo: cand ? candidatePhotoUrl(cand.photo) : null,
         active: cand ? !!cand.active : false,
         deleted: !cand,
         votes,
@@ -607,7 +653,7 @@ app.get('/api/admin/results', requireAdminAuth, (req, res) => {
       };
     })
     .sort((a, b) => b.votes - a.votes);
-  res.json({ total, pendingFlush: pendingWrites.size, votingOpen, matchNumber, results });
+  res.json({ total, pendingFlush: pendingWrites.size, votingOpen, matchNumber, podiumCount, results });
 });
 
 app.post('/api/admin/reset', requireAdminAuth, (req, res) => {
@@ -615,13 +661,16 @@ app.post('/api/admin/reset', requireAdminAuth, (req, res) => {
   tally.clear();
   for (const id of candidatesCache.keys()) tally.set(id, 0);
   pendingWrites = new Map();
+  pendingTokenUpdates = new Map();
   try {
     db.exec('DELETE FROM votes;');
+    db.exec('UPDATE vote_tokens SET used = 0, candidate = NULL, used_at = NULL;');
   } catch (err) {
     console.error('Failed to reset votes table:', err);
     return res.status(500).json({ error: 'reset_failed' });
   }
-  console.log(`[admin] All votes reset by ${getClientIp(req)} at ${new Date().toISOString()}`);
+  reloadTokenMeta();
+  console.log(`[admin] All votes and QR tokens reset by ${getClientIp(req)} at ${new Date().toISOString()}`);
   res.json({ success: true });
 });
 
@@ -652,6 +701,22 @@ app.post('/api/admin/match-number', requireAdminAuth, (req, res) => {
   ).run(String(n));
   console.log(`[admin] Match number set to ${n} by ${getClientIp(req)}`);
   res.json({ success: true, number: matchNumber });
+});
+
+// --- podium size (admin Podium tab) ---
+
+app.post('/api/admin/podium-count', requireAdminAuth, (req, res) => {
+  const n = Math.floor(Number(req.body && req.body.count));
+  if (!Number.isFinite(n) || n < 1 || n > 999) {
+    return res.status(400).json({ error: 'invalid_number' });
+  }
+  podiumCount = n;
+  db.prepare(
+    `INSERT INTO settings (key, value) VALUES ('podium_count', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(String(n));
+  console.log(`[admin] Podium count set to ${n} by ${getClientIp(req)}`);
+  res.json({ success: true, count: podiumCount });
 });
 
 // --- candidate management: list / add / update / delete ---

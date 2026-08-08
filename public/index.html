@@ -256,36 +256,93 @@
     min-height: 59vh;
   }
   .state-icon { font-size: clamp(2.5rem, 8vw, 3.5rem); }
+  .state-icon-img { width: clamp(2.5rem, 8vw, 3.5rem); height: auto; margin: 0 auto; }
   .state-title {
     font-family: var(--font-display);
-    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-size: clamp(0.8rem, 3.1vw, 2rem);
     color: var(--color-gold);
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+    letter-spacing: -0.2px;
+    word-spacing: -2px;
   }
   .state-panel.is-success .state-title { color: var(--color-success); }
   .state-text {
     color: var(--color-muted);
-    font-size: clamp(0.95rem, 2vw, 1.1rem);
+    font-size: clamp(0.75rem, 2vw, 1.1rem);
     max-width: 32ch;
-    line-height: 1.5;
+    line-height: 1;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
   }
-  .done-trophy { width: clamp(110px, 22vw, 160px); margin-top: var(--space-xs); }
+  .done-trophy { 
+    width: clamp(110px, 22vw, 160px);
+    margin: -20px 0;
+  }
 
   .voted-for {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--space-xs);
   }
   .voted-for-photo {
-    width: clamp(90px, 20vw, 120px);
+    width: clamp(150px, 20vw, 120px);
     aspect-ratio: 205 / 234;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    object-fit: contain;
   }
   .voted-for .state-text { max-width: none; }
+
+  /* When a photo is shown, the checkmark rides as a badge on its
+     bottom-right corner instead of sitting as a standalone icon. */
+  .voted-for-badge {
+    position: absolute;
+    right: -8px;
+    bottom: calc(var(--space-xs) - 8px);
+    width: clamp(3.5rem, 5vw, 2.2rem);
+    height: clamp(3.5rem, 5vw, 2.2rem);
+    object-fit: contain;
+  }
+  .voted-for:not([hidden]) ~ .state-icon { display: none; }
+
+  /* ---------------------------------------------------------------------
+     Vote-confirmed entrance animation: elements land in a staggered
+     sequence, and the checkmark badge pops in last with a little bounce.
+     [hidden] is display:none, so switching panels via showPanel() naturally
+     restarts these every time panel-done becomes visible.
+  --------------------------------------------------------------------- */
+  @keyframes voteDoneIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes voteBadgePop {
+    0%   { transform: scale(0); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  #panel-done:not([hidden]) .voted-for,
+  #panel-done:not([hidden]) .state-icon,
+  #panel-done:not([hidden]) .state-title,
+  #panel-done:not([hidden]) .state-text,
+  #panel-done:not([hidden]) .done-trophy {
+    animation: voteDoneIn 0.5s ease-out both;
+  }
+  #panel-done:not([hidden]) .state-title { animation-delay: 0.08s; }
+  #panel-done:not([hidden]) .state-text  { animation-delay: 0.16s; }
+  #panel-done:not([hidden]) .done-trophy { animation-delay: 0.24s; }
+  #panel-done:not([hidden]) .voted-for-badge {
+    animation: voteBadgePop 0.5s cubic-bezier(.3, 1.5, .4, 1) both;
+    animation-delay: 0.35s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #panel-done:not([hidden]) .voted-for,
+    #panel-done:not([hidden]) .state-icon,
+    #panel-done:not([hidden]) .state-title,
+    #panel-done:not([hidden]) .state-text,
+    #panel-done:not([hidden]) .done-trophy,
+    #panel-done:not([hidden]) .voted-for-badge {
+      animation: none;
+    }
+  }
 
   /* ---------------------------------------------------------------------
      Footer: Trophy.png foreground, sponsors.png banner
@@ -364,13 +421,13 @@
   </section>
 
   <section id="panel-done" class="vote-panel state-panel is-success" hidden>
-    <div class="state-icon">✅</div>
-    <h2 class="state-title">Merci pour votre vote !</h2>
-    <p class="state-text">Votre voix a bien été enregistrée pour ce match.</p>
     <div class="voted-for" id="voted-for" hidden>
       <img class="voted-for-photo" id="voted-for-photo" src="" alt="">
-      <p class="state-text">Vous avez voté pour <strong id="voted-for-name"></strong>.</p>
+      <img class="voted-for-badge" src="images/icon-done.png" alt="">
     </div>
+    <div class="state-icon"><img class="state-icon-img" src="images/icon-done.png" alt=""></div>
+    <h2 class="state-title">Merci pour votre vote !</h2>
+    <p class="state-text">Votre voix a bien été enregistrée pour ce match.</p>
     <img class="done-trophy" src="images/Trophy.png" alt="">
   </section>
 </main>
@@ -412,7 +469,6 @@
     if (cand) {
       document.getElementById('voted-for-photo').src = cand.photo;
       document.getElementById('voted-for-photo').alt = cand.name;
-      document.getElementById('voted-for-name').textContent = cand.name;
       wrap.hidden = false;
     } else {
       wrap.hidden = true;
@@ -474,25 +530,21 @@
       const qrToken = new URLSearchParams(window.location.search).get('t');
 
       const fetches = [
-        fetch('/api/check'),
         fetch('/api/voting-status'),
         fetch('/api/candidates'),
       ];
       if (qrToken) fetches.push(fetch('/api/token-status?t=' + encodeURIComponent(qrToken)));
 
       const results = await Promise.all(fetches);
-      const check = await results[0].json();
-      const status = await results[1].json();
-      const candidates = await results[2].json();
-      const tokenStatus = qrToken ? await results[3].json() : null;
+      const status = await results[0].json();
+      const candidates = await results[1].json();
+      const tokenStatus = qrToken ? await results[2].json() : null;
 
       candidates.forEach(function (c) { candidatesById[c.id] = c; });
 
-      if (check.voted) { showVotedFor(check.candidate); return; }
-
-      // A valid, unused QR token is required to vote - a bare visit to the
-      // page (no ?t=) is blocked here, mirroring the server-side gate in
-      // POST /api/vote.
+      // Vote identity is the QR token, not the browser - a bare visit to
+      // the page (no ?t=) is blocked here, mirroring the server-side gate
+      // in POST /api/vote.
       if (!qrToken) { showPanel('panel-no-token'); return; }
       if (!tokenStatus.valid) { showPanel('panel-invalid'); return; }
       if (tokenStatus.used) { showVotedFor(tokenStatus.candidate); return; }

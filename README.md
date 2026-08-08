@@ -1,23 +1,24 @@
 # La Coupe d'Humour — Match 1 (voting page + SQLite backend)
 
 A tiny Express server that serves the voting page and records each vote in
-SQLite. Each visitor is identified by an `httpOnly` cookie (`voter_token`),
-so the server — not `localStorage` — is the source of truth for "has this
-person already voted". Reloading the page, clearing `localStorage`, or using
-a different browser tab won't let someone vote twice; only clearing cookies
-or using a different browser/device will start a new voter identity. On top
-of that, voting requires a valid, single-use QR token (see "QR-code,
-single-use vote tokens" below) — there's no voting from a bare link.
+SQLite. Voting requires a valid, single-use QR token (see "QR-code,
+single-use vote tokens" below) — there's no voting from a bare link, and the
+token itself (not the browser) is what the server treats as the voter's
+identity: once a token is used, that exact QR code can never vote again, no
+matter what device scans it. A device can legitimately cast more than one
+vote if it's used to scan more than one token (e.g. a shared tablet at the
+door) — there's no separate per-browser lockout. Each vote is still tagged
+with an `httpOnly` cookie (`voter_token`), but only as an audit trail (which
+browser cast it), not as a gate.
 
 ## Handling bursts of traffic (~1000 concurrent votes)
 
-`/api/vote` and `/api/check` never touch disk on the request path:
+`/api/vote` never touches disk on the request path:
 
-- All votes live in an in-memory `Map` (`voter_token -> candidate`), which
-  is what `/api/vote` and `/api/check` read/write. This makes both endpoints
-  effectively instant and safe under heavy concurrency (tested locally with
-  1000 simultaneous votes: all 1000 accepted, 200/200, correctly tallied,
-  zero duplicates).
+- All votes live in an in-memory `Map` (`qr_token -> candidate`), which is
+  what `/api/vote` reads/writes. This makes it effectively instant and safe
+  under heavy concurrency (tested locally with 1000 simultaneous votes: all
+  1000 accepted, 200/200, correctly tallied, zero duplicates).
 - A background timer flushes whatever accumulated since the last tick to
   SQLite **every 2 seconds**, in a single batched transaction (fast, one
   disk sync instead of hundreds/thousands).
@@ -58,9 +59,8 @@ single-use vote tokens" below) — there's no voting from a bare link.
 Public:
 - `GET  /api/candidates` → `[{ id, name, photo }, ...]` (active players only, in display order — served from an in-memory cache, see below)
 - `GET  /api/voting-status` → `{ open: boolean }`
-- `GET  /api/check`  → `{ voted: boolean, candidate: string|null }`
 - `GET  /api/token-status?t=...` → `{ present, valid, used, candidate }` — status of a QR token
-- `POST /api/vote`   body `{ candidate: "habry", token: "<qr-token>" }` → `{ success: true, candidate }`. A valid, unused `token` is required: `400 { error: 'token_required' }` if missing, `400 { error: 'invalid_token' }` if unrecognized, `409 { error: 'token_already_used', candidate }` if already used. Also `409 { error: 'already_voted', candidate }` (per-browser cookie), `403` if voting is closed, `400 { error: 'invalid_candidate' }` if the candidate id is invalid/inactive
+- `POST /api/vote`   body `{ candidate: "habry", token: "<qr-token>" }` → `{ success: true, candidate }`. A valid, unused `token` is required: `400 { error: 'token_required' }` if missing, `400 { error: 'invalid_token' }` if unrecognized, `409 { error: 'token_already_used', candidate }` if already used, `403` if voting is closed, `400 { error: 'invalid_candidate' }` if the candidate id is invalid/inactive
 - `GET  /api/health` → `{ ok, votingOpen, totalVotes, pendingFlush }`
 
 Admin (all require Basic Auth — see below):
@@ -267,14 +267,14 @@ page directly.
   both buttons are next to each batch.
 - **A QR token is required to vote at all** — `POST /api/vote` rejects with
   `400 { error: 'token_required' }` if no token is sent, so there's no
-  walk-up/link-only voting. Enforcement is then two layers deep:
-  1. **Per-token**: the moment a token is used to vote, it's marked used —
-     scanning that same QR again (from any device, any browser, cookies
-     cleared or not) shows "already voted" (with the candidate they voted
-     for), never the ballot again.
-  2. **Per-browser**: the existing cookie-based protection still applies on
-     top of that — so if someone who already voted tries a second, unused
-     QR code in the *same* browser, that's blocked too.
+  walk-up/link-only voting. The moment a token is used to vote, it's marked
+  used — scanning that same QR again (from any device, any browser, cookies
+  cleared or not) shows "already voted" (with the candidate they voted for),
+  never the ballot again. That's the *only* gate: there's no separate
+  per-browser lockout, so the same device can be used to cast more than one
+  vote as long as each vote uses its own unused token (e.g. a shared tablet
+  at the door, or several people scanning their own printed QR codes on one
+  person's phone).
 - **Without a token** (a bare link with no `?t=`), the page shows a "QR code
   requis" screen instead of the ballot.
 - **Invalid/unrecognized token** (typo, tampered URL, deleted batch) shows a
@@ -349,7 +349,9 @@ sudo systemctl start coupe-humour   # recreates an empty table
 
 - `GET /api/results` is public with no auth — remove it or add a simple
   secret query param / admin auth if you don't want vote counts exposed.
-- The duplicate-vote protection is cookie-based (good enough for a casual
-  contest); it's not meant to stop a determined person using incognito mode
-  or multiple devices. If you need stronger protection, you'd add IP-based
-  rate limiting or a login step.
+- The duplicate-vote protection is QR-token-based, not device/browser-based
+  (good enough for a casual contest, and intentionally allows one device to
+  cast several votes with several distinct tokens). It's not meant to stop
+  someone who gets their hands on multiple unused physical QR codes from
+  using them all themselves. If you need stronger protection, you'd add
+  IP-based rate limiting or a login step.

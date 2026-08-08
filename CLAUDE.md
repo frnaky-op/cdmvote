@@ -51,14 +51,21 @@ with the user rather than assuming the two are meant to converge.
   precomputed JSON string (`candidatesJsonCache`), rebuilt immediately on
   any candidate add/edit/delete/reorder, with a 24h self-expiry as a
   fallback. Don't bypass this cache when adding new candidate-reading code.
-- **Vote identity**: an `httpOnly` `voter_token` cookie (5-year TTL) is the
-  server-side source of truth for "already voted" — never trust
-  `localStorage` for this. A valid, unused single-use QR token (`?t=...`,
-  tracked in `tokenMeta`/`vote_tokens`) is *required* on top of the cookie —
-  `POST /api/vote` rejects with `token_required`/`invalid_token` if it's
-  missing or unrecognized, and the public page blocks voting UI entirely
-  (`panel-no-token`) when the URL has no `?t=`. This means every voter must
-  have come from a distributed QR code; there's no walk-up/link-only voting.
+- **Vote identity**: the single-use QR token (`?t=...`, tracked in
+  `tokenMeta`/`vote_tokens`) is the *sole* source of truth for "already
+  voted" — `POST /api/vote` rejects with `token_required`/`invalid_token`/
+  `token_already_used` if it's missing, unrecognized, or already spent, and
+  the public page blocks voting UI entirely (`panel-no-token`) when the URL
+  has no `?t=`. This means every voter must have come from a distributed QR
+  code; there's no walk-up/link-only voting. There is deliberately **no**
+  per-browser/per-device gate on top of this: the same device can
+  legitimately cast several votes (e.g. a shared tablet at the door), each
+  with its own token — don't reintroduce one. The `httpOnly` `voter_token`
+  cookie (5-year TTL) still exists and is still written to each `votes` row,
+  but purely as an audit trail (which browser cast a given vote), not as a
+  gate — `voterIndex`/`pendingWrites` are keyed by `qr_token`, not by the
+  cookie. (`voter_token` is intentionally no longer `UNIQUE` in the DB
+  schema; `qr_token` is.)
 - **Static asset cache-busting**: `/` is rendered dynamically
   (`renderVersionedHtml`), not served via `express.static`, specifically so
   every asset URL in `STATIC_IMAGE_VERSION_TARGETS` gets a `?v=<mtime>`
@@ -96,6 +103,15 @@ with the user rather than assuming the two are meant to converge.
   outside this codebase (or is done manually by whoever runs the event).
 - No test suite exists. Verify changes by running `npm start` and hitting
   the routes directly (curl / the browser) rather than assuming coverage.
+- **Never run port-checking or port-killing commands** (`netstat`,
+  `taskkill`, `lsof -i`, etc.) against this app to "test" it, and never start
+  a second `node server.js` instance pointed at the real `data/votes.db` to
+  poke at it. A live instance (likely on port 3000) may already be running
+  against that same file, and a second process opening it concurrently risks
+  corrupting or clobbering real vote/QR-token data (this has happened
+  before). If you need to verify backend behavior, ask the user to test it,
+  or use an isolated copy of the DB in a scratch directory — never the real
+  `data/votes.db`.
 - Keep `README.md` in sync with `server.js` when routes change — it has
   already drifted once (see below).
 
