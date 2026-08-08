@@ -77,7 +77,7 @@
     object-fit: cover;
     object-position: left center;
     transform-origin: right center;
-    animation: bgZoomOut 18s ease-out forwards;
+    /*animation: bgZoomOut 18s ease-out forwards;*/
   }
   @keyframes bgZoomOut {
     from { transform: scale(1.5); }
@@ -164,7 +164,7 @@
     position: relative;
     z-index: 5;
     width: 75%;
-    max-height: 66vh;
+    height: 66vh;
     margin: 0 10px var(--space-lg) auto;
     padding: var(--space-sm);
     border-radius: var(--radius-md);
@@ -192,7 +192,7 @@
   .candidates-grid {
     overflow-y: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--space-sm);
     padding-right: 6px;
     scrollbar-width: thin;
@@ -202,6 +202,12 @@
   .candidates-grid::-webkit-scrollbar-thumb {
     background: rgba(255, 214, 90, 0.5);
     border-radius: 8px;
+  }
+
+  @media (min-width: 1024px) {
+    .candidates-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
   }
 
   .candidate-card {
