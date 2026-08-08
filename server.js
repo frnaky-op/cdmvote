@@ -949,13 +949,26 @@ app.get('/api/admin/tokens/batches', requireAdminAuth, (req, res) => {
   );
 });
 
+// Paginated - a batch can have hundreds of tokens, and the admin dashboard
+// used to fetch/render every single one at once when "Voir les QR" was
+// clicked, which got slow fast for large batches.
 app.get('/api/admin/tokens/batches/:id/tokens', requireAdminAuth, (req, res) => {
   const batchId = Number(req.params.id);
+  const pageSize = Math.min(200, Math.max(1, Math.floor(Number(req.query.pageSize)) || 50));
+  const page = Math.max(1, Math.floor(Number(req.query.page)) || 1);
+  const offset = (page - 1) * pageSize;
+
+  const total = db.prepare('SELECT COUNT(*) c FROM vote_tokens WHERE batch_id = ?').get(batchId).c;
   const rows = db
-    .prepare('SELECT token FROM vote_tokens WHERE batch_id = ? ORDER BY rowid ASC')
-    .all(batchId);
-  res.json(
-    rows.map((r) => {
+    .prepare('SELECT token FROM vote_tokens WHERE batch_id = ? ORDER BY rowid ASC LIMIT ? OFFSET ?')
+    .all(batchId, pageSize, offset);
+
+  res.json({
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    tokens: rows.map((r) => {
       const meta = tokenMeta.get(r.token) || { used: false, candidate: null, usedAt: null };
       return {
         token: r.token,
@@ -964,8 +977,8 @@ app.get('/api/admin/tokens/batches/:id/tokens', requireAdminAuth, (req, res) => 
         used_at: meta.usedAt,
         url: voteUrl(req, r.token),
       };
-    })
-  );
+    }),
+  });
 });
 
 app.get('/api/admin/tokens/:token/qr.png', requireAdminAuth, async (req, res) => {
