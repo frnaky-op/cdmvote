@@ -1031,16 +1031,14 @@ app.get('/api/admin/tokens/batches/:id/pdf', requireAdminAuth, async (req, res) 
   });
   doc.pipe(res);
 
-  const COLS = 3;
+  const COLS = 4;
+  const rowsPerPage = 5;
   const GAP = 16;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const cellWidth = (usableWidth - GAP * (COLS - 1)) / COLS;
   const qrSize = cellWidth - 20;
   const labelHeight = 16;
   const cellHeight = qrSize + labelHeight + GAP;
-
-  const usableHeight = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
-  const rowsPerPage = Math.max(1, Math.floor(usableHeight / cellHeight));
 
   const title = `QR de vote — Lot #${batchId}${batch.label ? ` · ${batch.label}` : ''}`;
   doc.fontSize(14).text(title, { align: 'left' });
