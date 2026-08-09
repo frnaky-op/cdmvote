@@ -5,3 +5,4 @@ figma/
 node_modules/
 .next/
 data/
+nginx.conf

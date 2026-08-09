@@ -399,13 +399,31 @@ const STATIC_IMAGE_VERSION_TARGETS = [
   'fonts/Hanson-Bold.ttf',
 ];
 
-function renderVersionedHtml(templatePath, extraReplacements) {
+// Precomputed once at boot, not per-request: the page template with every
+// static image URL already versioned (?v=<mtime>). Doing this on every
+// single page load (as before) meant a synchronous file read plus a
+// stat() per image, on the one route every voter hits - fine for a single
+// request, but under a burst of people opening the page at once (this
+// app's actual use case: everyone scanning a QR code around the same time)
+// those blocking calls stack up and can stall the event loop long enough
+// for a reverse proxy to time out and return 502, even though the request
+// would have succeeded a moment later. Only the {{MATCH_NUMBER}}
+// placeholder still needs a per-request swap, which is a cheap string
+// split/join with no I/O.
+function buildVersionedTemplate(templatePath) {
   let html = fs.readFileSync(templatePath, 'utf8');
   for (const rel of STATIC_IMAGE_VERSION_TARGETS) {
     const abs = path.join(PUBLIC_DIR, rel);
     const versioned = `${rel}?v=${fileVersion(abs)}`;
     html = html.split(rel).join(versioned);
   }
+  return html;
+}
+
+const indexHtmlTemplate = buildVersionedTemplate(path.join(PUBLIC_DIR, 'index.html'));
+
+function renderIndexHtml(extraReplacements) {
+  let html = indexHtmlTemplate;
   if (extraReplacements) {
     for (const [from, to] of extraReplacements) html = html.split(from).join(to);
   }
@@ -421,7 +439,7 @@ app.get('/', (req, res) => {
   // are still hanging around from before the cache-busting fix, without
   // touching cookies.
   res.set('Clear-Site-Data', '"cache"');
-  res.send(renderVersionedHtml(path.join(PUBLIC_DIR, 'index.html'), [
+  res.send(renderIndexHtml([
     ['{{MATCH_NUMBER}}', String(matchNumber)],
   ]));
 });
@@ -429,7 +447,7 @@ app.get('/', (req, res) => {
 // A direct hit on /index.html must not fall through to express.static below
 // - that would serve the raw template, unversioned image paths and all,
 // and (since public/index.html now contains a {{MATCH_NUMBER}} placeholder
-// meant to be replaced by renderVersionedHtml) a JS syntax error in the
+// meant to be replaced by renderIndexHtml) a JS syntax error in the
 // page's own <script>. Redirect it to '/' so it always goes through the
 // same rendering path.
 app.get('/index.html', (req, res) => res.redirect(301, '/'));

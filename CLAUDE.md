@@ -67,11 +67,18 @@ with the user rather than assuming the two are meant to converge.
   cookie. (`voter_token` is intentionally no longer `UNIQUE` in the DB
   schema; `qr_token` is.)
 - **Static asset cache-busting**: `/` is rendered dynamically
-  (`renderVersionedHtml`), not served via `express.static`, specifically so
+  (`renderIndexHtml`), not served via `express.static`, specifically so
   every asset URL in `STATIC_IMAGE_VERSION_TARGETS` gets a `?v=<mtime>`
   suffix. Candidate photos are versioned the same way via
   `candidatePhotoUrl`. If you add a new fixed image/font to `public/`, add
-  its path to `STATIC_IMAGE_VERSION_TARGETS` or it won't cache-bust.
+  its path to `STATIC_IMAGE_VERSION_TARGETS` or it won't cache-bust. The
+  static-asset substitution itself (`buildVersionedTemplate`) runs **once
+  at boot**, not per-request — it does synchronous file reads/stats, and
+  doing that on every hit to `/` (the one route every voter loads) caused
+  intermittent 502s under a burst of concurrent page loads. Only the
+  `{{MATCH_NUMBER}}` placeholder is substituted per-request now (cheap,
+  no I/O). If you ever need per-request behavior here again, keep the
+  expensive part cached and only redo the genuinely dynamic part.
 - **Admin auth**: HTTP Basic Auth with a constant-time comparison
   (`timingSafeEqualStr`) — no sessions, no JWT, one shared admin/password
   pair from `ADMIN_USER`/`ADMIN_PASSWORD` env vars.
@@ -82,7 +89,7 @@ with the user rather than assuming the two are meant to converge.
   in-memory state, public API, admin API, QR token generation/export.
 - `public/index.html` — the voting page. Contains a `{{MATCH_NUMBER}}`
   placeholder (title + header `<script>`) filled in server-side by
-  `renderVersionedHtml` from the `match_number` setting — set it from
+  `renderIndexHtml` from the `match_number` setting — set it from
   `/admin`, not by editing this file. A direct `GET /index.html` is
   redirected to `/` so it can't bypass that substitution.
 - `admin/index.html` — the admin dashboard (voting toggle, results table,
