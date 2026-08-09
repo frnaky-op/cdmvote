@@ -71,11 +71,12 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS candidates (
-    id         TEXT PRIMARY KEY,
-    name       TEXT NOT NULL,
-    photo      TEXT NOT NULL,
-    position   INTEGER NOT NULL DEFAULT 0,
-    active     INTEGER NOT NULL DEFAULT 1
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    photo           TEXT NOT NULL,
+    position        INTEGER NOT NULL DEFAULT 0,
+    active          INTEGER NOT NULL DEFAULT 1,
+    vote_adjustment INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS settings (
@@ -106,6 +107,16 @@ db.exec(`
   const cols = db.prepare('PRAGMA table_info(votes)').all().map((c) => c.name);
   if (!cols.includes('qr_token')) {
     db.exec('ALTER TABLE votes ADD COLUMN qr_token TEXT');
+  }
+}
+
+// Migration: older databases created before vote_adjustment existed on
+// candidates (a manual per-candidate offset the admin can set, see
+// displayVotes below).
+{
+  const cols = db.prepare('PRAGMA table_info(candidates)').all().map((c) => c.name);
+  if (!cols.includes('vote_adjustment')) {
+    db.exec('ALTER TABLE candidates ADD COLUMN vote_adjustment INTEGER NOT NULL DEFAULT 0');
   }
 }
 
@@ -243,7 +254,7 @@ let candidatesJsonCacheAt = 0;
 function reloadCandidatesCache() {
   candidatesCache.clear();
   const rows = db
-    .prepare('SELECT id, name, photo, position, active FROM candidates ORDER BY position ASC, name ASC')
+    .prepare('SELECT id, name, photo, position, active, vote_adjustment FROM candidates ORDER BY position ASC, name ASC')
     .all();
   for (const row of rows) candidatesCache.set(row.id, row);
 
@@ -265,6 +276,19 @@ function getCandidatesJson() {
     reloadCandidatesCache();
   }
   return candidatesJsonCache;
+}
+
+// The vote total shown anywhere in /admin: real votes (tally, driven by
+// actual used QR tokens) plus an optional manual adjustment the admin can
+// set per candidate (see POST /api/admin/candidates/:id/votes). The
+// adjustment is a stored offset, not a hard override, so it stays correct
+// as new real votes keep coming in on top of it. Real vote data itself is
+// never touched by this - it's purely an additive display correction.
+// Deleted candidates (no candidatesCache entry) have no adjustment to add.
+function displayVotes(id) {
+  const cand = candidatesCache.get(id);
+  const adjustment = cand ? cand.vote_adjustment || 0 : 0;
+  return (tally.get(id) || 0) + adjustment;
 }
 
 let votingOpen = true;
@@ -654,11 +678,15 @@ app.get('/admin', requireAdminAuth, (req, res) => {
 // --- results & reset ---
 
 app.get('/api/admin/results', requireAdminAuth, (req, res) => {
-  const total = voterIndex.size;
   const ids = new Set([...candidatesCache.keys(), ...tally.keys()]);
+  const votesById = new Map(Array.from(ids, (id) => [id, displayVotes(id)]));
+  // The percentage denominator includes any manual adjustments too, so
+  // percentages stay internally consistent with the displayed totals
+  // instead of being computed against the real-vote-only count.
+  const total = Array.from(votesById.values()).reduce((sum, v) => sum + v, 0);
   const results = Array.from(ids)
     .map((id) => {
-      const votes = tally.get(id) || 0;
+      const votes = votesById.get(id);
       const cand = candidatesCache.get(id);
       return {
         candidate: id,
@@ -683,11 +711,16 @@ app.post('/api/admin/reset', requireAdminAuth, (req, res) => {
   try {
     db.exec('DELETE FROM votes;');
     db.exec('UPDATE vote_tokens SET used = 0, candidate = NULL, used_at = NULL;');
+    // Stale manual adjustments (see displayVotes) would otherwise linger
+    // and pad a candidate's total even though every real vote was just
+    // wiped out.
+    db.exec('UPDATE candidates SET vote_adjustment = 0;');
   } catch (err) {
     console.error('Failed to reset votes table:', err);
     return res.status(500).json({ error: 'reset_failed' });
   }
   reloadTokenMeta();
+  reloadCandidatesCache();
   console.log(`[admin] All votes and QR tokens reset by ${getClientIp(req)} at ${new Date().toISOString()}`);
   res.json({ success: true });
 });
@@ -741,10 +774,32 @@ app.post('/api/admin/podium-count', requireAdminAuth, (req, res) => {
 
 app.get('/api/admin/candidates', requireAdminAuth, (req, res) => {
   const rows = db
-    .prepare('SELECT id, name, photo, position, active FROM candidates ORDER BY position ASC, name ASC')
+    .prepare('SELECT id, name, photo, position, active, vote_adjustment FROM candidates ORDER BY position ASC, name ASC')
     .all()
-    .map((c) => ({ ...c, photo: candidatePhotoUrl(c.photo), votes: tally.get(c.id) || 0 }));
+    .map((c) => ({ ...c, photo: candidatePhotoUrl(c.photo), votes: displayVotes(c.id) }));
   res.json(rows);
+});
+
+// Sets a candidate's manually-adjusted vote total: computes and persists
+// the offset needed to make displayVotes(id) equal the requested number,
+// on top of whatever real votes exist now or arrive later (see
+// displayVotes above) - it never touches real vote/token data.
+app.post('/api/admin/candidates/:id/votes', requireAdminAuth, (req, res) => {
+  const id = req.params.id;
+  const cand = candidatesCache.get(id);
+  if (!cand) return res.status(404).json({ error: 'not_found' });
+
+  const total = Math.floor(Number(req.body && req.body.total));
+  if (!Number.isFinite(total) || total < 0) {
+    return res.status(400).json({ error: 'invalid_total' });
+  }
+
+  const adjustment = total - (tally.get(id) || 0);
+  db.prepare('UPDATE candidates SET vote_adjustment = ? WHERE id = ?').run(adjustment, id);
+  cand.vote_adjustment = adjustment;
+
+  console.log(`[admin] Vote total for ${id} manually set to ${total} by ${getClientIp(req)}`);
+  res.json({ success: true, votes: displayVotes(id) });
 });
 
 // Reorder players: body { order: ["id2", "id5", "id1", ...] } - full list of

@@ -43,6 +43,7 @@
   .btn-primary { background:#4f7cff; color:#fff; }
   .btn-primary:hover { background:#3d68eb; }
   .btn-small { padding:6px 12px; font-size:12px; }
+  .vote-edit-btn { margin-left:8px; }
   button:disabled { opacity:.5; cursor:default; }
 
   #msg { font-size:13px; margin-top:14px; min-height:18px; }
@@ -409,6 +410,30 @@
     }
   }
 
+  // Manually override a candidate's displayed vote total (server stores it
+  // as an offset on top of real votes - see displayVotes/vote_adjustment
+  // in server.js, real vote/token data is never touched by this).
+  async function editCandidateVotes(id, currentVotes) {
+    const input = prompt('Nouveau total de votes pour ce candidat :', currentVotes);
+    if (input === null) return;
+    const total = Math.floor(Number(input));
+    if (!Number.isFinite(total) || total < 0) {
+      return showMsg(msgEl, 'Nombre de votes invalide.', 'err');
+    }
+    try {
+      const res = await fetch('/api/admin/candidates/' + encodeURIComponent(id) + '/votes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      showMsg(msgEl, 'Total de votes mis à jour.', 'ok');
+      await Promise.all([loadCandidates(), loadResults()]);
+    } catch (e) {
+      showMsg(msgEl, "Erreur lors de la mise à jour du total de votes.", 'err');
+    }
+  }
+
   function renderPodium(data) {
     const n = Math.max(1, data.podiumCount || 3);
     const top = data.results.slice(0, n);
@@ -578,7 +603,10 @@
           <td><img src="${c.photo}" alt="${c.name}"></td>
           <td class="cand-name-cell">
             <input type="text" class="name-input" value="${c.name.replace(/"/g, '&quot;')}">
-            <div class="cand-id">${c.id} · ${c.votes} vote(s)</div>
+            <div class="cand-id">
+              ${c.id} · ${c.votes} vote(s)
+              <button class="btn-neutral btn-small vote-edit-btn" data-id="${c.id}" data-votes="${c.votes}" title="Modifier le total de votes">Modifier</button>
+            </div>
           </td>
           <td>
             <label class="switch">
@@ -604,6 +632,10 @@
         row.querySelector('.delete-btn').addEventListener('click', () => deleteCandidate(id, row));
         row.querySelector('.move-up-btn').addEventListener('click', () => moveCandidate(id, -1));
         row.querySelector('.move-down-btn').addEventListener('click', () => moveCandidate(id, 1));
+        const voteEditBtn = row.querySelector('.vote-edit-btn');
+        if (voteEditBtn) {
+          voteEditBtn.addEventListener('click', () => editCandidateVotes(id, Number(voteEditBtn.dataset.votes)));
+        }
       });
     } catch (e) {
       candidatesBody.innerHTML = '<tr><td colspan="5">Erreur de chargement.</td></tr>';
