@@ -2,14 +2,16 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin - La Coupe d'Humour</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
   body {
     font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     background:#111318;
     color:#eee;
-    padding:24px 20px 80px;
+    padding:14px 12px 60px;
   }
   .wrap { max-width:860px; margin:0 auto; }
   .sub { color:#9aa0aa; font-size:14px; }
@@ -22,8 +24,13 @@
   .stat-chip .n { font-size:15px; font-weight:700; }
   .stat-chip .l { font-size:11px; color:#9aa0aa; }
 
+  /* Tables can be wider than a phone screen (many columns / action
+     buttons) - scroll horizontally within their own wrapper instead of
+     squeezing content or blowing out the page width. */
+  .table-scroll { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:10px; }
   table { width:100%; border-collapse:collapse; background:#1a1d24; border-radius:10px; overflow:hidden; }
-  th, td { text-align:left; padding:12px 16px; font-size:14px; vertical-align:middle; }
+  .cand-table { min-width:520px; }
+  th, td { text-align:left; padding:8px 10px; font-size:13px; vertical-align:middle; }
   th { background:#20242c; color:#9aa0aa; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.04em; }
   tr:not(:last-child) td { border-bottom:1px solid #262a33; }
   .bar-bg { background:#262a33; border-radius:4px; height:8px; width:100%; margin-top:6px; overflow:hidden; }
@@ -84,7 +91,7 @@
   .modal-field .desc { margin-bottom:8px; }
   .modal-field input[type=number] {
     width:100%; background:#111318; border:1px solid #30343f; color:#eee;
-    padding:8px 10px; border-radius:6px; font-size:15px;
+    padding:8px 10px; border-radius:6px; font-size:16px;
   }
   .modal-actions { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
 
@@ -109,7 +116,7 @@
   .cand-name-cell { min-width:150px; }
   .cand-name-cell input[type=text] {
     background:#111318; border:1px solid #30343f; color:#eee; padding:6px 8px; border-radius:6px;
-    font-size:13px; width:100%;
+    font-size:16px; width:100%;
   }
   .cand-id { color:#6b7280; font-size:11px; margin-top:2px; }
   .cand-actions { display:flex; gap:6px; flex-wrap:wrap; }
@@ -122,14 +129,16 @@
   .file-name { font-size:11px; color:#9aa0aa; margin-top:4px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .add-form {
-    background:#1a1d24; border:1px solid #262a33; border-radius:10px; padding:18px 20px;
+    background:#1a1d24; border:1px solid #262a33; border-radius:10px; padding:14px 16px;
     display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-top:14px;
   }
-  .add-form .field { display:flex; flex-direction:column; gap:6px; }
+  .add-form .field { display:flex; flex-direction:column; gap:6px; flex:1 1 160px; }
   .add-form label { font-size:12px; color:#9aa0aa; }
   .add-form input[type=text] {
-    background:#111318; border:1px solid #30343f; color:#eee; padding:8px 10px; border-radius:6px; font-size:13px;
+    background:#111318; border:1px solid #30343f; color:#eee; padding:8px 10px; border-radius:6px;
+    font-size:16px; width:100%;
   }
+  .add-form button { flex:1 1 160px; }
 
   /* tabs (now part of .topbar) */
   .tabs { display:flex; gap:4px; }
@@ -140,40 +149,59 @@
   .tab-btn:hover { color:#eee; background:#1a1d24; }
   .tab-btn.active { color:#fff; background:#262a33; }
 
-  /* podium */
+  /* podium — mobile-first: one winner per row (stacked) on phones, all N
+     winners in a single wrapped row once there's enough width. Dynamic
+     count either way. */
   .podium-stage {
-    display:flex; align-items:flex-end; justify-content:center; gap:16px;
-    margin-bottom:28px; flex-wrap:wrap; padding-top:20px;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    margin-bottom:24px; padding:16px 2px 8px;
   }
-  .podium-spot { display:flex; flex-direction:column; align-items:center; gap:6px; width:120px; }
+  .podium-spot {
+    display:flex; align-items:center; gap:12px;
+    width:100%; max-width:320px;
+  }
   .podium-photo {
-    width:88px; height:100px; object-fit:cover; border-radius:10px; border:3px solid #262a33; background:#000;
+    width:64px; height:72px; flex-shrink:0; object-fit:cover; border-radius:10px;
+    border:3px solid #262a33; background:#000;
   }
-  .podium-spot[data-rank="1"] { order:2; }
-  .podium-spot[data-rank="2"] { order:1; }
-  .podium-spot[data-rank="3"] { order:3; }
-  .podium-spot[data-rank="1"] .podium-photo { width:108px; height:122px; border-color:#ffd75a; }
+  .podium-spot[data-rank="1"] .podium-photo { width:76px; height:86px; border-color:#ffd75a; }
   .podium-spot[data-rank="2"] .podium-photo { border-color:#c9c9c9; }
   .podium-spot[data-rank="3"] .podium-photo { border-color:#cd7f32; }
-  .podium-medal { font-size:20px; font-weight:800; }
-  .podium-name { font-size:13px; font-weight:600; text-align:center; }
-  .podium-votes { font-size:11px; color:#9aa0aa; }
-  .podium-base { width:100%; border-radius:6px 6px 0 0; }
-  .podium-spot[data-rank="1"] .podium-base { height:64px; background:#ffd75a1a; border-top:3px solid #ffd75a; }
-  .podium-spot[data-rank="2"] .podium-base { height:44px; background:#ffffff11; border-top:3px solid #c9c9c9; }
-  .podium-spot[data-rank="3"] .podium-base { height:28px; background:#cd7f321a; border-top:3px solid #cd7f32; }
-  #podium-rest-table td img {
-    width:36px; height:41px; object-fit:cover; border-radius:5px; display:block; background:#000;
-  }
+  .podium-medal { font-size:18px; font-weight:800; line-height:1; flex-shrink:0; width:26px; text-align:center; }
+  .podium-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .podium-name { font-size:13px; font-weight:600; text-align:left; overflow-wrap:anywhere; }
+  .podium-votes { font-size:11px; color:#9aa0aa; text-align:left; white-space:nowrap; }
+
   #podium-empty { color:#9aa0aa; font-size:13px; }
 
+  @media (min-width:560px) {
+    .podium-stage { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:16px; }
+    .podium-spot { flex-direction:column; width:auto; min-width:100px; max-width:130px; gap:6px; }
+    .podium-photo { width:100%; max-width:84px; height:auto; aspect-ratio:4/4.5; }
+    .podium-spot[data-rank="1"] .podium-photo { width:100%; max-width:100px; height:auto; }
+    .podium-medal { width:auto; font-size:20px; }
+    .podium-info { align-items:center; }
+    .podium-name { font-size:13px; text-align:center; }
+    .podium-votes { font-size:11px; text-align:center; }
+  }
+
   /* QR token sub-list */
-  .qr-tokens-list { max-height:280px; overflow-y:auto; padding:12px; }
-  .qr-tokens-list table { background:#14161c; }
+  .qr-tokens-list { max-height:280px; overflow:auto; -webkit-overflow-scrolling:touch; padding:12px; }
+  .qr-tokens-list table { background:#14161c; min-width:320px; }
   .qr-tokens-list th, .qr-tokens-list td { padding:8px 12px; font-size:13px; }
   .qr-tokens-pager {
     display:flex; align-items:center; justify-content:center; gap:14px;
     padding:10px 4px 2px;
+  }
+
+  /* Desktop/tablet enhancement - roomier spacing once there's width to
+     spare. Base (above) is the mobile-first default. */
+  @media (min-width:700px) {
+    body { padding:24px 20px 80px; }
+    th, td { padding:12px 16px; font-size:14px; }
+    .add-form { padding:18px 20px; }
+    .add-form .field, .add-form button { flex:0 0 auto; }
+    .add-form input[type=text] { width:auto; }
   }
 </style>
 </head>
@@ -219,7 +247,7 @@
 
       <div class="modal-field">
         <label>Joueurs affichés au podium (N)</label>
-        <div class="desc">Le top 3 s'affiche sur le podium, les suivants (4 à N) en liste en dessous, dans l'onglet Podium.</div>
+        <div class="desc">Les N premiers s'affichent sur le podium, en une seule ligne, dans l'onglet Podium.</div>
         <input type="number" id="podium-count-input" min="1" max="999" disabled>
       </div>
 
@@ -242,10 +270,12 @@
       </div>
     </div>
 
-    <table>
-      <thead><tr><th>Candidat</th><th>Votes</th><th>%</th></tr></thead>
-      <tbody id="results-body"><tr><td colspan="3">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Candidat</th><th>Votes</th><th>%</th></tr></thead>
+        <tbody id="results-body"><tr><td colspan="3">Chargement…</td></tr></tbody>
+      </table>
+    </div>
 
     <div class="actions">
       <button id="refresh-btn" class="btn-neutral">Actualiser</button>
@@ -258,18 +288,16 @@
   <!-- Podium -->
   <section id="tab-podium" class="tab-panel" hidden>
     <div class="podium-stage" id="podium-stage"></div>
-    <table id="podium-rest-table">
-      <thead><tr><th>Rang</th><th>Photo</th><th>Nom</th><th>Votes</th><th>%</th></tr></thead>
-      <tbody id="podium-rest-body"></tbody>
-    </table>
   </section>
 
   <!-- Candidate manager -->
   <section id="tab-players" class="tab-panel" hidden>
-    <table class="cand-table">
-      <thead><tr><th>Ordre</th><th>Photo</th><th>Nom</th><th>Statut</th><th>Actions</th></tr></thead>
-      <tbody id="candidates-body"><tr><td colspan="5">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll">
+      <table class="cand-table">
+        <thead><tr><th>Ordre</th><th>Photo</th><th>Nom</th><th>Statut</th><th>Actions</th></tr></thead>
+        <tbody id="candidates-body"><tr><td colspan="5">Chargement…</td></tr></tbody>
+      </table>
+    </div>
 
     <div class="add-form">
       <div class="field">
@@ -308,10 +336,12 @@
     </div>
     <div id="qr-msg"></div>
 
-    <table class="cand-table" style="margin-top:16px;">
-      <thead><tr><th>Lot</th><th>Généré le</th><th>Utilisés</th><th>Actions</th></tr></thead>
-      <tbody id="qr-batches-body"><tr><td colspan="4">Chargement…</td></tr></tbody>
-    </table>
+    <div class="table-scroll" style="margin-top:16px;">
+      <table class="cand-table">
+        <thead><tr><th>Lot</th><th>Généré le</th><th>Utilisés</th><th>Actions</th></tr></thead>
+        <tbody id="qr-batches-body"><tr><td colspan="4">Chargement…</td></tr></tbody>
+      </table>
+    </div>
   </section>
 
 </div>
@@ -337,8 +367,6 @@
   const matchNumberModalClose = document.getElementById('match-number-modal-close');
   const podiumCountInput = document.getElementById('podium-count-input');
   const podiumStage = document.getElementById('podium-stage');
-  const podiumRestTable = document.getElementById('podium-rest-table');
-  const podiumRestBody = document.getElementById('podium-rest-body');
 
   function openMatchNumberModal() {
     matchNumberModal.hidden = false;
@@ -386,13 +414,14 @@
 
       renderPodium(data);
 
-      if (data.results.length === 0) {
+      const visibleResults = data.results.filter((r) => !r.deleted);
+      if (visibleResults.length === 0) {
         resultsBody.innerHTML = '<tr><td colspan="3">Aucun vote pour le moment.</td></tr>';
       } else {
-        const maxVotes = Math.max(...data.results.map((r) => r.votes), 1);
-        resultsBody.innerHTML = data.results.map((r) => `
+        const maxVotes = Math.max(...visibleResults.map((r) => r.votes), 1);
+        resultsBody.innerHTML = visibleResults.map((r) => `
           <tr>
-            <td>${r.name}${r.deleted ? ' <span class="deleted-tag">(supprimé)</span>' : ''}${(!r.deleted && !r.active) ? ' <span class="inactive-tag">(désactivé)</span>' : ''}</td>
+            <td>${r.name}${!r.active ? ' <span class="inactive-tag">(désactivé)</span>' : ''}</td>
             <td>
               ${r.votes}
               <div class="bar-bg"><div class="bar-fill" style="width:${(r.votes / maxVotes) * 100}%"></div></div>
@@ -437,44 +466,31 @@
   function renderPodium(data) {
     const n = Math.max(1, data.podiumCount || 3);
     const top = data.results.slice(0, n);
-    const podiumSpots = top.slice(0, 3);
-    const rest = top.slice(3);
 
-    if (podiumSpots.length === 0) {
+    if (top.length === 0) {
       podiumStage.innerHTML = '<div id="podium-empty">Aucun vote pour le moment.</div>';
-    } else {
-      podiumStage.innerHTML = podiumSpots.map((r, i) => {
-        const rank = i + 1;
-        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
-        const photo = r.photo
-          ? `<img class="podium-photo" src="${r.photo}" alt="${r.name}">`
-          : '<div class="podium-photo"></div>';
-        return `
-          <div class="podium-spot" data-rank="${rank}">
-            <div class="podium-medal">${medal}</div>
-            ${photo}
-            <div class="podium-name">${r.name}</div>
-            <div class="podium-votes">${r.votes} vote(s) &middot; ${r.percent}%</div>
-            <div class="podium-base"></div>
-          </div>
-        `;
-      }).join('');
+      return;
     }
 
-    if (rest.length === 0) {
-      podiumRestTable.hidden = true;
-    } else {
-      podiumRestTable.hidden = false;
-      podiumRestBody.innerHTML = rest.map((r, i) => `
-        <tr>
-          <td>${i + 4}</td>
-          <td>${r.photo ? `<img src="${r.photo}" alt="${r.name}">` : ''}</td>
-          <td>${r.name}${r.deleted ? ' <span class="deleted-tag">(supprimé)</span>' : ''}${(!r.deleted && !r.active) ? ' <span class="inactive-tag">(désactivé)</span>' : ''}</td>
-          <td>${r.votes}</td>
-          <td>${r.percent}%</td>
-        </tr>
-      `).join('');
-    }
+    podiumStage.innerHTML = top.map((r, i) => {
+      const rank = i + 1;
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+      const photo = r.photo
+        ? `<img class="podium-photo" src="${r.photo}" alt="${r.name}">`
+        : '<div class="podium-photo"></div>';
+      const tag = r.deleted ? ' <span class="deleted-tag">(supprimé)</span>'
+        : (!r.active ? ' <span class="inactive-tag">(désactivé)</span>' : '');
+      return `
+        <div class="podium-spot" data-rank="${rank}">
+          <div class="podium-medal">${medal}</div>
+          ${photo}
+          <div class="podium-info">
+            <div class="podium-name">${r.name}${tag}</div>
+            <div class="podium-votes">${r.votes} vote(s) &middot; ${r.percent}%</div>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   async function resetAll() {

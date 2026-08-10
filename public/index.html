@@ -92,6 +92,26 @@
   }
 
   /* ---------------------------------------------------------------------
+     Shared entrance keyframes, reused across header/hero/grid/panels
+  --------------------------------------------------------------------- */
+  @keyframes fadeSlideDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes floatY {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+
+  /* ---------------------------------------------------------------------
      Fixed top bar (tete-de-page.png + KHFIFA badge layered on top) -
      always visible while scrolling
   --------------------------------------------------------------------- */
@@ -102,6 +122,7 @@
     width: 100%;
     z-index: 10;
     pointer-events: none;
+    animation: fadeSlideDown 0.6s ease-out both;
   }
 
   .khfifa-badge {
@@ -129,6 +150,7 @@
     top: 7.03vh; /* 135 / 1920 */
     left: clamp(8px, 2vw, 24px);
     width: clamp(120px, 18vw, 210px);
+    animation: fadeSlideUp 0.6s ease-out 0.1s both;
   }
 
   .match-badge {
@@ -136,6 +158,7 @@
     top: 8.5vh; /* 190 / 1920, nudged slightly to clear the header badge */
     right: clamp(14px, 3vw, 24px);
     width: clamp(280px, 34vw, 420px);
+    animation: fadeSlideUp 0.6s ease-out 0.2s both;
   }
 
   .match-badge-image { width: 100%; height: auto; }
@@ -178,6 +201,9 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* Toggling [hidden] flips display none<->flex, which naturally
+       restarts this animation each time showPanel() reveals a panel. */
+    animation: fadeSlideUp 0.5s ease-out both;
   }
 
   /* The vote grid is deliberately right-aligned (see margin above) to sit
@@ -215,6 +241,7 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-xs);
+    animation: cardIn 0.45s ease-out both;
   }
 
   .candidate-photo {
@@ -240,8 +267,20 @@
   }
   .vote-btn img { width: 100%; height: 100%; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5)); }
   .vote-btn:hover img { filter: drop-shadow(0 5px 10px rgba(0,0,0,0.6)) brightness(1.08); }
-  .vote-btn:active { transform: scale(0.95); }
+  .vote-btn:hover { transform: translateY(-2px); }
+  .vote-btn:active { transform: scale(0.92); }
   .vote-btn:disabled { opacity: 0.5; cursor: default; }
+  .vote-btn:disabled:hover { transform: none; }
+
+  @keyframes voteBtnPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+  .vote-btn.is-voting {
+    animation: voteBtnPulse 0.4s ease-in-out infinite;
+    pointer-events: none;
+  }
 
   /* ---------------------------------------------------------------------
      State panels: closed / invalid / done content
@@ -339,7 +378,15 @@
     #panel-done:not([hidden]) .state-title,
     #panel-done:not([hidden]) .state-text,
     #panel-done:not([hidden]) .done-trophy,
-    #panel-done:not([hidden]) .voted-for-badge {
+    #panel-done:not([hidden]) .voted-for-badge,
+    .top-bar,
+    .cdm-logo,
+    .match-badge,
+    .vote-panel,
+    .candidate-card,
+    .site-footer,
+    .trophy-fg,
+    .vote-btn.is-voting {
       animation: none;
     }
   }
@@ -353,6 +400,7 @@
     display: flex;
     justify-content: center;
     padding: 0 var(--space-sm) var(--space-lg);
+    animation: fadeSlideUp 0.6s ease-out 0.3s both;
   }
 
   .footer-inner {
@@ -369,12 +417,18 @@
     width: clamp(85px, 10vw, 96px);
     z-index: 2;
     filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+    animation: floatY 3s ease-in-out infinite;
   }
 
   .sponsors-bar {
     width: 100%;
     height: auto;
     border-radius: var(--radius-md);
+    transition: filter 0.2s ease, transform 0.2s ease;
+  }
+  .footer-inner:hover .sponsors-bar {
+    filter: brightness(1.08);
+    transform: translateY(-2px);
   }
 </style>
 </head>
@@ -476,8 +530,9 @@
     showPanel('panel-done');
   }
 
-  async function vote(candidateId, qrToken) {
+  async function vote(candidateId, qrToken, btn) {
     setButtonsDisabled(true);
+    if (btn) btn.classList.add('is-voting');
     try {
       const res = await fetch('/api/vote', {
         method: 'POST',
@@ -508,19 +563,23 @@
     } catch (e) {
       setButtonsDisabled(false);
       alert("Impossible de contacter le serveur. Vérifiez votre connexion.");
+    } finally {
+      if (btn) btn.classList.remove('is-voting');
     }
   }
 
   function renderCandidates(candidates, qrToken) {
     const grid = document.getElementById('candidates-grid');
     grid.innerHTML = '';
-    candidates.forEach(function (c) {
+    candidates.forEach(function (c, i) {
       const card = document.createElement('div');
       card.className = 'candidate-card';
+      card.style.animationDelay = (i * 0.06) + 's';
       card.innerHTML =
         '<div class="candidate-photo"><img src="' + c.photo + '" alt="' + c.name + '" loading="lazy"></div>' +
         '<button class="vote-btn" type="button"><img src="images/btn-votez.png" alt="Votez pour ' + c.name + '"></button>';
-      card.querySelector('.vote-btn').addEventListener('click', function () { vote(c.id, qrToken); });
+      const voteBtn = card.querySelector('.vote-btn');
+      voteBtn.addEventListener('click', function () { vote(c.id, qrToken, voteBtn); });
       grid.appendChild(card);
     });
   }
